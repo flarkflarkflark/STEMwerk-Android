@@ -25,9 +25,9 @@ class ModelManager(private val ctx: Context) {
     // TODO: Replace placeholder URLs with real model hosting.
     private fun specFor(stems: Int): ModelSpec {
         return when (stems) {
-            2 -> ModelSpec(2, "0.1", "https://example.com/models/2stems.onnx", "stemwerk_2stems_v0.1.onnx")
-            4 -> ModelSpec(4, "0.1", "https://example.com/models/4stems.onnx", "stemwerk_4stems_v0.1.onnx")
-            6 -> ModelSpec(6, "0.1", "https://example.com/models/6stems.onnx", "stemwerk_6stems_v0.1.onnx")
+            2 -> ModelSpec(2, "0.1", "https://raw.githubusercontent.com/flarkflarkflark/STEMwerk-Android/main/models/stemwerk_2stems_v0.1.onnx", "stemwerk_2stems_v0.1.onnx")
+            4 -> ModelSpec(4, "0.1", "https://raw.githubusercontent.com/flarkflarkflark/STEMwerk-Android/main/models/stemwerk_4stems_v0.1.onnx", "stemwerk_4stems_v0.1.onnx")
+            6 -> ModelSpec(6, "0.1", "https://raw.githubusercontent.com/flarkflarkflark/STEMwerk-Android/main/models/stemwerk_6stems_v0.1.onnx", "stemwerk_6stems_v0.1.onnx")
             else -> error("Unsupported stems: $stems")
         }
     }
