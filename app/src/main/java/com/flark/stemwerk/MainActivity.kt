@@ -5,6 +5,8 @@ import android.widget.ArrayAdapter
 import android.widget.Button
 import android.widget.Spinner
 import android.widget.TextView
+import android.widget.ImageView
+import com.caverock.androidsvg.SVG
 import androidx.appcompat.app.AppCompatActivity
 
 class MainActivity : AppCompatActivity() {
@@ -22,6 +24,16 @@ class MainActivity : AppCompatActivity() {
         downloadModelButton = findViewById(R.id.downloadModelButton)
         splitButton = findViewById(R.id.splitButton)
         statusText = findViewById(R.id.statusText)
+
+        val logoView: ImageView = findViewById(R.id.logo)
+        try {
+            val svg = SVG.getFromResource(this, R.raw.stemwerk_dynamic)
+            val drawable = svg.renderToPicture().let { android.graphics.drawable.PictureDrawable(it) }
+            logoView.setLayerType(android.view.View.LAYER_TYPE_SOFTWARE, null)
+            logoView.setImageDrawable(drawable)
+        } catch (e: Exception) {
+            // ignore
+        }
 
         stemCountSpinner.adapter = ArrayAdapter(
             this,
