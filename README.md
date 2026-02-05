@@ -1,4 +1,4 @@
-# STEMwerk-Android
+# flarkaudio STEMWERK-Android
 
 Offline stem separation on Android (ZenFone 10 target) with selectable **2 / 4 / 6 stems**.
 

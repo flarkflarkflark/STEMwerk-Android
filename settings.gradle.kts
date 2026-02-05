@@ -14,5 +14,5 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "STEMwerk-Android"
+rootProject.name = "flarkaudio STEMWERK-Android"
 include(":app")

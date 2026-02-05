@@ -38,7 +38,7 @@ jobs:
         run: |
           mkdir -p out
           APK=$(ls -1 app/build/outputs/apk/debug/*.apk | head -n 1)
-          cp "$APK" out/flarkAUDIO-STEMwerk-Android-debug.apk
+          cp "$APK" out/flarkaudio-STEMWERK-Android-debug.apk
           sha256sum out/*.apk > out/SHA256SUMS.txt
 
       - name: Create/Update nightly release
@@ -48,5 +48,5 @@ jobs:
           name: Nightly (debug)
           prerelease: true
           files: |
-            out/flarkAUDIO-STEMwerk-Android-debug.apk
+            out/flarkaudio-STEMWERK-Android-debug.apk
             out/SHA256SUMS.txt
