@@ -1,0 +1,52 @@
+name: Nightly Debug APK Release
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-release:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Install Gradle (for generating wrapper)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gradle
+
+      - name: Generate Gradle Wrapper
+        run: |
+          gradle wrapper --gradle-version 8.7
+          chmod +x ./gradlew
+
+      - name: Build debug APK
+        run: |
+          ./gradlew :app:assembleDebug
+
+      - name: Prepare release assets
+        run: |
+          mkdir -p out
+          APK=$(ls -1 app/build/outputs/apk/debug/*.apk | head -n 1)
+          cp "$APK" out/flarkAUDIO-STEMwerk-Android-debug.apk
+          sha256sum out/*.apk > out/SHA256SUMS.txt
+
+      - name: Create/Update nightly release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: nightly
+          name: Nightly (debug)
+          prerelease: true
+          files: |
+            out/flarkAUDIO-STEMwerk-Android-debug.apk
+            out/SHA256SUMS.txt
