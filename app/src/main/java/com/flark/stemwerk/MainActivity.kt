@@ -38,7 +38,7 @@ class MainActivity : AppCompatActivity() {
         stemCountSpinner.adapter = ArrayAdapter(
             this,
             android.R.layout.simple_spinner_dropdown_item,
-            listOf("2 stems", "4 stems", "6 stems")
+            listOf("2 stems", "4 stems")
         )
 
         val modelManager = ModelManager(this)
