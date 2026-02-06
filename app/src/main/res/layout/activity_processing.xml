@@ -12,7 +12,8 @@
         android:layout_height="wrap_content"
         android:text="Processing…"
         android:textStyle="bold"
-        android:textSize="18sp" />
+        android:textSize="18sp"
+        android:textColor="#FFFFFF" />
 
     <ProgressBar
         android:id="@+id/progressBar"
@@ -27,7 +28,8 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_marginTop="8dp"
-        android:text="Starting…" />
+        android:text="Starting…"
+        android:textColor="#DDDDDD" />
 
     <ScrollView
         android:layout_width="match_parent"
@@ -41,14 +43,23 @@
             android:layout_height="wrap_content"
             android:textSize="12sp"
             android:typeface="monospace"
+            android:textColor="#BBBBBB"
             android:text="" />
 
     </ScrollView>
 
     <Button
+        android:id="@+id/shareButton"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Share output (.zip)"
+        android:enabled="false" />
+
+    <Button
         android:id="@+id/closeButton"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
         android:text="Close"
         android:enabled="false" />
 
