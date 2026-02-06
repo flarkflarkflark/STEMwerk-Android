@@ -11,8 +11,8 @@ android {
         applicationId = "com.flark.stemwerk"
         minSdk = 26
         targetSdk = 34
-        versionCode = 2
-        versionName = "0.1.3"
+        versionCode = 3
+        versionName = "0.1.4"
 
         // We start with ARM64 only (ZenFone 10). Add armeabi-v7a later if needed.
         ndk {
@@ -46,6 +46,8 @@ dependencies {
     implementation("androidx.core:core-ktx:1.13.1")
     implementation("androidx.appcompat:appcompat:1.7.0")
     implementation("com.google.android.material:material:1.12.0")
+
+    implementation("com.arthenica:ffmpeg-kit-min:6.0")
 
     // Future:
     // implementation("com.microsoft.onnxruntime:onnxruntime-android:1.17.3")

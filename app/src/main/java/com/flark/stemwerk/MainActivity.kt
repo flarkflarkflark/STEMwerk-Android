@@ -1,6 +1,9 @@
 package com.flark.stemwerk
 
 import android.os.Bundle
+import android.net.Uri
+import android.content.Intent
+import androidx.activity.result.contract.ActivityResultContracts
 import android.widget.ArrayAdapter
 import android.widget.Button
 import android.widget.Spinner
@@ -19,6 +22,21 @@ class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
+
+        val selectAudioButton: Button = findViewById(R.id.selectAudioButton)
+
+        var selectedAudioUri: Uri? = null
+
+        val pickAudio = registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+            if (uri != null) {
+                selectedAudioUri = uri
+                statusText.text = "Status: selected audio: $uri"
+            }
+        }
+
+        selectAudioButton.setOnClickListener {
+            pickAudio.launch(arrayOf("audio/*"))
+        }
 
         stemCountSpinner = findViewById(R.id.stemCountSpinner)
         downloadModelButton = findViewById(R.id.downloadModelButton)
@@ -51,6 +69,34 @@ class MainActivity : AppCompatActivity() {
 
         val modelManager = ModelManager(this)
 
+        splitButton.setOnClickListener {
+            val stems2 = when (stemCountSpinner.selectedItemPosition) {
+                0 -> 2
+                else -> 4
+            }
+            val uri = selectedAudioUri
+            if (uri == null) {
+                statusText.text = "Status: select audio first"
+                return@setOnClickListener
+            }
+
+            // Ensure we have the model cached (ModelManager will return cached path fast)
+            modelManager.ensureModel(stems2,
+                onProgress = { pct -> runOnUiThread { statusText.text = "Status: model check… ${pct}%" } },
+                onDone = { path ->
+                    runOnUiThread {
+                        val i = Intent(this, ProcessingActivity::class.java)
+                        i.putExtra("stems", stems2)
+                        i.putExtra("audioUri", uri.toString())
+                        i.putExtra("modelPath", path)
+                        startActivity(i)
+                    }
+                },
+                onError = { msg -> runOnUiThread { statusText.text = "Status: model error: $msg" } }
+            )
+        }
+
+
         downloadModelButton.setOnClickListener {
             val stems = when (stemCountSpinner.selectedItemPosition) {
                 0 -> 2
@@ -71,7 +117,7 @@ class MainActivity : AppCompatActivity() {
                     runOnUiThread {
                         statusText.text = "Status: model ready at ${path}"
                         downloadModelButton.isEnabled = true
-                        splitButton.isEnabled = true
+                        splitButton.isEnabled = (selectedAudioUri != null)
                     }
                 },
                 onError = { msg ->

@@ -18,6 +18,10 @@
             </intent-filter>
         </activity>
 
+        <activity
+            android:name=".ProcessingActivity"
+            android:exported="false" />
+
     </application>
 
 </manifest>
