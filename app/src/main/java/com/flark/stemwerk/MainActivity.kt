@@ -8,6 +8,8 @@ import android.widget.ArrayAdapter
 import android.widget.Button
 import android.widget.Spinner
 import android.widget.TextView
+import android.webkit.WebView
+import android.webkit.WebSettings
 import android.widget.ImageView
 import com.caverock.androidsvg.SVG
 import androidx.appcompat.app.AppCompatActivity
@@ -51,12 +53,33 @@ class MainActivity : AppCompatActivity() {
             // ignore
         }
 
+        val logoWeb: WebView = findViewById(R.id.logoWeb)
+        logoWeb.setBackgroundColor(0x00000000)
+        logoWeb.settings.cacheMode = WebSettings.LOAD_NO_CACHE
+        logoWeb.settings.allowFileAccess = false
+        logoWeb.settings.javaScriptEnabled = false
+
+        // Try animated SVG via WebView (SMIL animations work in Chromium)
+        try {
+            val svgText = assets.open("stemwerk_dynamic.svg").bufferedReader().use { it.readText() }
+            val html = """
+                <html><head><meta name="viewport" content="width=device-width, initial-scale=1"/></head>
+                <body style="margin:0;background:transparent;display:flex;align-items:center;justify-content:center;">
+                  $svgText
+                </body></html>
+            """.trimIndent()
+            logoWeb.loadDataWithBaseURL(null, html, "text/html", "utf-8", null)
+        } catch (_: Exception) {
+            // ignore, fallback below
+        }
+
         val logoView: ImageView = findViewById(R.id.logo)
         try {
             val svg = SVG.getFromResource(this, R.raw.stemwerk_dynamic)
             val drawable = svg.renderToPicture().let { android.graphics.drawable.PictureDrawable(it) }
             logoView.setLayerType(android.view.View.LAYER_TYPE_SOFTWARE, null)
             logoView.setImageDrawable(drawable)
+            logoView.visibility = android.view.View.VISIBLE
         } catch (e: Exception) {
             // ignore
         }
