@@ -1,6 +1,6 @@
 name: Nightly Debug APK Release
 
-on:
+"on":
   workflow_dispatch: {}
   push:
     branches: [ main ]
