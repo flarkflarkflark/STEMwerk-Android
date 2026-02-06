@@ -11,8 +11,8 @@ android {
         applicationId = "com.flark.stemwerk"
         minSdk = 26
         targetSdk = 34
-        versionCode = 7
-        versionName = "0.1.8"
+        versionCode = 8
+        versionName = "0.1.9"
 
         // We start with ARM64 only (ZenFone 10). Add armeabi-v7a later if needed.
         ndk {

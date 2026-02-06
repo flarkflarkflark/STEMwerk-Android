@@ -1,47 +1,41 @@
 package com.flark.stemwerk
 
-import android.os.Bundle
-import android.net.Uri
 import android.content.Intent
-import androidx.activity.result.contract.ActivityResultContracts
+import android.net.Uri
+import android.os.Bundle
+import android.webkit.WebSettings
+import android.webkit.WebView
 import android.widget.ArrayAdapter
 import android.widget.Button
+import android.widget.ImageView
 import android.widget.Spinner
 import android.widget.TextView
-import android.webkit.WebView
-import android.webkit.WebSettings
-import android.widget.ImageView
-import com.caverock.androidsvg.SVG
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
+import com.caverock.androidsvg.SVG
 
 class MainActivity : AppCompatActivity() {
 
     private lateinit var stemCountSpinner: Spinner
     private lateinit var downloadModelButton: Button
+    private lateinit var selectAudioButton: Button
     private lateinit var splitButton: Button
     private lateinit var statusText: TextView
+
+    private var selectedAudioUri: Uri? = null
+    private var modelPath: String? = null
+
+    private fun refreshSplitEnabled() {
+        splitButton.isEnabled = (selectedAudioUri != null && modelPath != null)
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
-        val selectAudioButton: Button = findViewById(R.id.selectAudioButton)
-
-        var selectedAudioUri: Uri? = null
-
-        val pickAudio = registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
-            if (uri != null) {
-                selectedAudioUri = uri
-                statusText.text = "Status: selected audio: $uri"
-            }
-        }
-
-        selectAudioButton.setOnClickListener {
-            pickAudio.launch(arrayOf("audio/*"))
-        }
-
         stemCountSpinner = findViewById(R.id.stemCountSpinner)
         downloadModelButton = findViewById(R.id.downloadModelButton)
+        selectAudioButton = findViewById(R.id.selectAudioButton)
         splitButton = findViewById(R.id.splitButton)
         statusText = findViewById(R.id.statusText)
 
@@ -53,13 +47,17 @@ class MainActivity : AppCompatActivity() {
             // ignore
         }
 
+        // Logo: prefer animated SVG via WebView; only show ImageView fallback if WebView fails
         val logoWeb: WebView = findViewById(R.id.logoWeb)
+        val logoView: ImageView = findViewById(R.id.logo)
+        logoView.visibility = android.view.View.GONE
+
         logoWeb.setBackgroundColor(0x00000000)
         logoWeb.settings.cacheMode = WebSettings.LOAD_NO_CACHE
         logoWeb.settings.allowFileAccess = false
         logoWeb.settings.javaScriptEnabled = false
 
-        // Try animated SVG via WebView (SMIL animations work in Chromium)
+        var webOk = false
         try {
             val svgText = assets.open("stemwerk_dynamic.svg").bufferedReader().use { it.readText() }
             val html = """
@@ -69,19 +67,21 @@ class MainActivity : AppCompatActivity() {
                 </body></html>
             """.trimIndent()
             logoWeb.loadDataWithBaseURL(null, html, "text/html", "utf-8", null)
+            webOk = true
         } catch (_: Exception) {
-            // ignore, fallback below
+            webOk = false
         }
 
-        val logoView: ImageView = findViewById(R.id.logo)
-        try {
-            val svg = SVG.getFromResource(this, R.raw.stemwerk_dynamic)
-            val drawable = svg.renderToPicture().let { android.graphics.drawable.PictureDrawable(it) }
-            logoView.setLayerType(android.view.View.LAYER_TYPE_SOFTWARE, null)
-            logoView.setImageDrawable(drawable)
-            logoView.visibility = android.view.View.VISIBLE
-        } catch (e: Exception) {
-            // ignore
+        if (!webOk) {
+            try {
+                val svg = SVG.getFromResource(this, R.raw.stemwerk_dynamic)
+                val drawable = svg.renderToPicture().let { android.graphics.drawable.PictureDrawable(it) }
+                logoView.setLayerType(android.view.View.LAYER_TYPE_SOFTWARE, null)
+                logoView.setImageDrawable(drawable)
+                logoView.visibility = android.view.View.VISIBLE
+            } catch (_: Exception) {
+                // ignore
+            }
         }
 
         stemCountSpinner.adapter = ArrayAdapter(
@@ -92,55 +92,38 @@ class MainActivity : AppCompatActivity() {
 
         val modelManager = ModelManager(this)
 
-        splitButton.setOnClickListener {
-            val stems2 = when (stemCountSpinner.selectedItemPosition) {
-                0 -> 2
-                else -> 4
+        val pickAudio = registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+            if (uri != null) {
+                selectedAudioUri = uri
+                statusText.text = "Status: selected audio: $uri"
+                refreshSplitEnabled()
             }
-            val uri = selectedAudioUri
-            if (uri == null) {
-                statusText.text = "Status: select audio first"
-                return@setOnClickListener
-            }
-
-            // Ensure we have the model cached (ModelManager will return cached path fast)
-            modelManager.ensureModel(stems2,
-                onProgress = { pct -> runOnUiThread { statusText.text = "Status: model check… ${pct}%" } },
-                onDone = { path ->
-                    runOnUiThread {
-                        val i = Intent(this, ProcessingActivity::class.java)
-                        i.putExtra("stems", stems2)
-                        i.putExtra("audioUri", uri.toString())
-                        i.putExtra("modelPath", path)
-                        startActivity(i)
-                    }
-                },
-                onError = { msg -> runOnUiThread { statusText.text = "Status: model error: $msg" } }
-            )
         }
 
+        selectAudioButton.setOnClickListener {
+            pickAudio.launch(arrayOf("audio/*"))
+        }
 
         downloadModelButton.setOnClickListener {
             val stems = when (stemCountSpinner.selectedItemPosition) {
                 0 -> 2
-                1 -> 4
-                else -> 6
+                else -> 4
             }
 
             statusText.text = "Status: downloading model for ${stems} stems…"
             downloadModelButton.isEnabled = false
 
-            modelManager.ensureModel(stems,
+            modelManager.ensureModel(
+                stems,
                 onProgress = { pct ->
-                    runOnUiThread {
-                        statusText.text = "Status: downloading model… ${pct}%"
-                    }
+                    runOnUiThread { statusText.text = "Status: downloading model… ${pct}%" }
                 },
                 onDone = { path ->
                     runOnUiThread {
-                        statusText.text = "Status: model ready at ${path}"
+                        modelPath = path
+                        statusText.text = "Status: model ready at $path"
                         downloadModelButton.isEnabled = true
-                        splitButton.isEnabled = (selectedAudioUri != null)
+                        refreshSplitEnabled()
                     }
                 },
                 onError = { msg ->
@@ -151,5 +134,30 @@ class MainActivity : AppCompatActivity() {
                 }
             )
         }
+
+        splitButton.setOnClickListener {
+            val stems = when (stemCountSpinner.selectedItemPosition) {
+                0 -> 2
+                else -> 4
+            }
+            val uri = selectedAudioUri
+            val mp = modelPath
+            if (uri == null) {
+                statusText.text = "Status: select audio first"
+                return@setOnClickListener
+            }
+            if (mp == null) {
+                statusText.text = "Status: download model first"
+                return@setOnClickListener
+            }
+
+            val i = Intent(this, ProcessingActivity::class.java)
+            i.putExtra("stems", stems)
+            i.putExtra("audioUri", uri.toString())
+            i.putExtra("modelPath", mp)
+            startActivity(i)
+        }
+
+        refreshSplitEnabled()
     }
 }
