@@ -1,6 +1,7 @@
 package com.flark.stemwerk
 
 import java.io.File
+import java.io.OutputStream
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 
@@ -77,7 +78,7 @@ object WavUtil {
         return info to pcm
     }
 
-    fun writePcm16Wav(outFile: File, info: WavInfo, pcm: ByteArray) {
+    fun writePcm16Wav(out: OutputStream, info: WavInfo, pcm: ByteArray) {
         val byteRate = info.sampleRate * info.channels * (info.bitsPerSample / 8)
         val blockAlign = info.channels * (info.bitsPerSample / 8)
 
@@ -101,9 +102,13 @@ object WavUtil {
         bb.put("data".toByteArray(Charsets.US_ASCII))
         bb.putInt(pcm.size)
 
+        out.write(bb.array())
+        out.write(pcm)
+    }
+
+    fun writePcm16Wav(outFile: File, info: WavInfo, pcm: ByteArray) {
         outFile.outputStream().use { os ->
-            os.write(bb.array())
-            os.write(pcm)
+            writePcm16Wav(os, info, pcm)
         }
     }
 }

@@ -1,68 +1,135 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
-    android:layout_height="match_parent"
-    android:orientation="vertical"
-    android:background="#111111"
-    android:padding="16dp">
+    android:layout_height="match_parent">
 
-    <WebView
-        android:id="@+id/logoWeb"
-        android:layout_width="match_parent"
-        android:layout_height="120dp"
-        android:layout_marginBottom="12dp"
-        android:background="@android:color/transparent" />
-
-    <ImageView
-        android:id="@+id/logo"
-        android:layout_width="match_parent"
-        android:layout_height="120dp"
-        android:layout_marginBottom="12dp"
-        android:scaleType="centerInside"
-        android:visibility="gone"
-        android:contentDescription="STEMwerk logo" />
-
-    <TextView
-        android:id="@+id/title"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="flarkaudio STEMWERK-Android"
-        android:textSize="20sp"
-        android:textStyle="bold" />
-
-    <Spinner
-        android:id="@+id/stemCountSpinner"
+    <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="16dp" />
+        android:orientation="vertical"
+        android:padding="16dp">
 
-    <Button
-        android:id="@+id/downloadModelButton"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="12dp"
-        android:text="Download model" />
+        <FrameLayout
+            android:layout_width="match_parent"
+            android:layout_height="160dp">
 
-    <Button
-        android:id="@+id/selectAudioButton"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="12dp"
-        android:text="Select audio" />
+            <WebView
+                android:id="@+id/logoWebView"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent" />
 
-    <Button
-        android:id="@+id/splitButton"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="12dp"
-        android:enabled="false"
-        android:text="Split (not implemented)" />
+            <ImageView
+                android:id="@+id/logoFallback"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:scaleType="centerInside"
+                android:visibility="gone" />
+        </FrameLayout>
 
-    <TextView
-        android:id="@+id/statusText"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="16dp"
-        android:text="Status: idle" />
+        <TextView
+            android:id="@+id/statusText"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Status: idle"
+            android:textSize="14sp"
+            android:paddingTop="8dp" />
 
-</LinearLayout>
+        <Button
+            android:id="@+id/pickAudioButton"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Pick audio" />
+
+        <TextView
+            android:id="@+id/audioSelectedText"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="No audio selected"
+            android:paddingBottom="8dp" />
+
+        <Button
+            android:id="@+id/pickModelButton"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Pick model" />
+
+        <TextView
+            android:id="@+id/modelSelectedText"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="No model selected"
+            android:paddingBottom="12dp" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Output folder" />
+
+        <Button
+            android:id="@+id/pickOutputFolderButton"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Choose output folder" />
+
+        <TextView
+            android:id="@+id/outputFolderText"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Not set (will use app folder)"
+            android:paddingBottom="12dp" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Stems" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:paddingBottom="12dp">
+
+            <CheckBox
+                android:id="@+id/stemVocals"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:checked="true"
+                android:text="Vocals" />
+
+            <CheckBox
+                android:id="@+id/stemDrums"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:checked="true"
+                android:text="Drums" />
+
+            <CheckBox
+                android:id="@+id/stemBass"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:checked="true"
+                android:text="Bass" />
+
+            <CheckBox
+                android:id="@+id/stemOther"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:checked="true"
+                android:text="Other" />
+        </LinearLayout>
+
+        <Button
+            android:id="@+id/startButton"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Split" />
+
+        <TextView
+            android:id="@+id/helpText"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:paddingTop="12dp"
+            android:text="Tip: For now, WAV (PCM16) input only. Real Demucs separation is coming next." />
+
+    </LinearLayout>
+</ScrollView>

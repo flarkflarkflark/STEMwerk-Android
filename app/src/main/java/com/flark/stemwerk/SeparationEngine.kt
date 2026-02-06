@@ -2,7 +2,7 @@ package com.flark.stemwerk
 
 import android.content.Context
 import android.net.Uri
-import java.io.File
+import java.io.OutputStream
 import kotlin.concurrent.thread
 import kotlin.math.ceil
 
@@ -11,7 +11,7 @@ import kotlin.math.ceil
  *
  * Current behavior:
  * - Requires WAV PCM16 input.
- * - Writes multiple WAV outputs that currently contain the same audio (dummy stems).
+ * - Writes selected stems as WAV outputs that currently contain the same audio (dummy stems).
  * - Shows chunk progress (like the real Demucs path will).
  */
 class SeparationEngine(private val ctx: Context) {
@@ -19,8 +19,9 @@ class SeparationEngine(private val ctx: Context) {
     fun run(
         audioUri: Uri,
         stems: Int,
+        selectedStemNames: List<String>,
         modelPath: String,
-        outDir: File,
+        output: OutputSink,
         onLog: (String) -> Unit,
         onProgress: (Int, String) -> Unit,
         onDone: (Boolean, String) -> Unit,
@@ -30,10 +31,19 @@ class SeparationEngine(private val ctx: Context) {
                 onLog("Audio URI: $audioUri")
                 onLog("Model path: $modelPath")
 
-                val names = when (stems) {
+                val available = when (stems) {
                     2 -> listOf("vocals", "instrumental")
                     4 -> listOf("drums", "bass", "other", "vocals")
                     else -> throw RuntimeException("Only 2/4 supported right now")
+                }
+
+                val names = selectedStemNames
+                    .map { it.lowercase() }
+                    .filter { it in available }
+                    .distinct()
+
+                if (names.isEmpty()) {
+                    throw RuntimeException("No stems selected")
                 }
 
                 onProgress(3, "Reading WAV…")
@@ -59,7 +69,9 @@ class SeparationEngine(private val ctx: Context) {
                 val segmentFrames = segmentSec * info.sampleRate
                 val overlapFrames = overlapSec * info.sampleRate
                 val hopFrames = (segmentFrames - overlapFrames).coerceAtLeast(1)
-                val chunks = if (totalFrames <= 0) 0 else ceil((totalFrames.toDouble() - overlapFrames) / hopFrames).toInt().coerceAtLeast(1)
+                val chunks = if (totalFrames <= 0) 0 else ceil((totalFrames.toDouble() - overlapFrames) / hopFrames)
+                    .toInt()
+                    .coerceAtLeast(1)
 
                 onLog("Chunking: segment=${segmentSec}s overlap=${overlapSec}s hopFrames=$hopFrames chunks=$chunks")
 
@@ -73,8 +85,11 @@ class SeparationEngine(private val ctx: Context) {
                 for ((idx, name) in names.withIndex()) {
                     val pct = 70 + ((idx.toFloat() / names.size) * 25).toInt().coerceIn(70, 95)
                     onProgress(pct, "Writing $name.wav…")
-                    val outFile = File(outDir, "$name.wav")
-                    WavUtil.writePcm16Wav(outFile, info, pcm)
+
+                    val os: OutputStream = output.open("$name.wav", "audio/wav")
+                    os.use { out ->
+                        WavUtil.writePcm16Wav(out, info, pcm)
+                    }
                 }
 
                 onProgress(98, "Done")
