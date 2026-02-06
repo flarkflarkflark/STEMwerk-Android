@@ -25,6 +25,14 @@ class MainActivity : AppCompatActivity() {
         splitButton = findViewById(R.id.splitButton)
         statusText = findViewById(R.id.statusText)
 
+        // Show app version so we can verify which APK is installed
+        try {
+            val pInfo = packageManager.getPackageInfo(packageName, 0)
+            statusText.text = "Status: idle (v" + pInfo.versionName + ")"
+        } catch (_: Exception) {
+            // ignore
+        }
+
         val logoView: ImageView = findViewById(R.id.logo)
         try {
             val svg = SVG.getFromResource(this, R.raw.stemwerk_dynamic)
