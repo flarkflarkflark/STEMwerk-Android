@@ -6,15 +6,13 @@ import java.io.File
 import kotlin.concurrent.thread
 
 /**
- * MVP engine (NO real Demucs yet, NO FFmpeg yet).
+ * MVP engine (NO real Demucs yet).
  *
- * This produces "dummy stems" by copying the input file bytes into multiple output files.
- * It validates:
- * - URI handling
- * - background processing window
- * - output folder creation
+ * Current behavior:
+ * - Requires WAV PCM16 input.
+ * - Writes multiple WAV outputs that currently contain the same audio (dummy stems).
  *
- * Next step: replace this with real audio decode + Demucs inference + WAV encoding.
+ * Next: replace with Demucs inference and real stems.
  */
 class SeparationEngine(private val ctx: Context) {
 
@@ -38,23 +36,29 @@ class SeparationEngine(private val ctx: Context) {
                     else -> throw RuntimeException("Only 2/4 supported right now")
                 }
 
-                // Read all bytes once (ok for short test files; later stream+decode)
-                onProgress(5, "Reading input…")
+                onProgress(5, "Reading WAV…")
                 val bytes = ctx.contentResolver.openInputStream(audioUri).use { ins ->
                     if (ins == null) throw RuntimeException("Unable to open input stream")
                     ins.readBytes()
                 }
 
-                onProgress(15, "Writing dummy stems…")
+                if (!WavUtil.sniffWav(bytes)) {
+                    throw RuntimeException("Please select a WAV file (PCM16)")
+                }
+
+                val (info, pcm) = WavUtil.parsePcm16(bytes)
+                onLog("WAV: ${info.sampleRate} Hz, ${info.channels} ch, ${info.bitsPerSample} bit, data=${info.dataSize} bytes")
+
+                onProgress(20, "Writing stems (dummy)…")
                 for ((idx, name) in names.withIndex()) {
-                    val pct = 15 + ((idx.toFloat() / names.size) * 80).toInt()
-                    onProgress(pct, "Writing $name (copy)…")
-                    val outFile = File(outDir, "$name.audio")
-                    outFile.writeBytes(bytes)
+                    val pct = 20 + ((idx.toFloat() / names.size) * 75).toInt()
+                    onProgress(pct, "Writing $name.wav…")
+                    val outFile = File(outDir, "$name.wav")
+                    WavUtil.writePcm16Wav(outFile, info, pcm)
                 }
 
                 onProgress(98, "Done")
-                onDone(true, "Finished (dummy stems). Next: Demucs + real audio encoding")
+                onDone(true, "Finished (dummy WAV stems). Next: Demucs + real separation")
             } catch (e: Exception) {
                 onLog("Error: ${e.message}")
                 onDone(false, "Failed: ${e.message}")
