@@ -1,7 +1,7 @@
 name: Nightly Debug APK Release
 
 on:
-  workflow_dispatch:
+  workflow_dispatch: {}
 
 permissions:
   contents: write
