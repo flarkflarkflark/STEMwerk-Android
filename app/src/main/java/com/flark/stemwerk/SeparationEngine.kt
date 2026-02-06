@@ -4,6 +4,7 @@ import android.content.Context
 import android.net.Uri
 import java.io.File
 import kotlin.concurrent.thread
+import kotlin.math.ceil
 
 /**
  * MVP engine (NO real Demucs yet).
@@ -11,8 +12,7 @@ import kotlin.concurrent.thread
  * Current behavior:
  * - Requires WAV PCM16 input.
  * - Writes multiple WAV outputs that currently contain the same audio (dummy stems).
- *
- * Next: replace with Demucs inference and real stems.
+ * - Shows chunk progress (like the real Demucs path will).
  */
 class SeparationEngine(private val ctx: Context) {
 
@@ -36,7 +36,7 @@ class SeparationEngine(private val ctx: Context) {
                     else -> throw RuntimeException("Only 2/4 supported right now")
                 }
 
-                onProgress(5, "Reading WAV…")
+                onProgress(3, "Reading WAV…")
                 val bytes = ctx.contentResolver.openInputStream(audioUri).use { ins ->
                     if (ins == null) throw RuntimeException("Unable to open input stream")
                     ins.readBytes()
@@ -47,11 +47,31 @@ class SeparationEngine(private val ctx: Context) {
                 }
 
                 val (info, pcm) = WavUtil.parsePcm16(bytes)
-                onLog("WAV: ${info.sampleRate} Hz, ${info.channels} ch, ${info.bitsPerSample} bit, data=${info.dataSize} bytes")
+                val bytesPerFrame = info.channels * 2 // PCM16
+                val totalFrames = pcm.size / bytesPerFrame
 
-                onProgress(20, "Writing stems (dummy)…")
+                onLog("WAV: ${info.sampleRate} Hz, ${info.channels} ch, ${info.bitsPerSample} bit")
+                onLog("Frames: $totalFrames")
+
+                // Chunk plan (used later for Demucs overlap-add)
+                val segmentSec = 10
+                val overlapSec = 1
+                val segmentFrames = segmentSec * info.sampleRate
+                val overlapFrames = overlapSec * info.sampleRate
+                val hopFrames = (segmentFrames - overlapFrames).coerceAtLeast(1)
+                val chunks = if (totalFrames <= 0) 0 else ceil((totalFrames.toDouble() - overlapFrames) / hopFrames).toInt().coerceAtLeast(1)
+
+                onLog("Chunking: segment=${segmentSec}s overlap=${overlapSec}s hopFrames=$hopFrames chunks=$chunks")
+
+                for (i in 1..chunks) {
+                    val pct = 5 + ((i.toFloat() / chunks) * 55).toInt().coerceIn(0, 60)
+                    onProgress(pct, "Processing chunk $i/$chunks…")
+                    // (dummy path: no heavy work here yet)
+                }
+
+                onProgress(70, "Writing stems (dummy)…")
                 for ((idx, name) in names.withIndex()) {
-                    val pct = 20 + ((idx.toFloat() / names.size) * 75).toInt()
+                    val pct = 70 + ((idx.toFloat() / names.size) * 25).toInt().coerceIn(70, 95)
                     onProgress(pct, "Writing $name.wav…")
                     val outFile = File(outDir, "$name.wav")
                     WavUtil.writePcm16Wav(outFile, info, pcm)

@@ -3,6 +3,7 @@ package com.flark.stemwerk
 import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
+import android.view.WindowManager
 import android.widget.Button
 import android.widget.ProgressBar
 import android.widget.TextView
@@ -35,6 +36,7 @@ class ProcessingActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         setContentView(R.layout.activity_processing)
 
         val progressBar: ProgressBar = findViewById(R.id.progressBar)
