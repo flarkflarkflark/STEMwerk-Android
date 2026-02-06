@@ -41,14 +41,37 @@ jobs:
           cp "$APK" out/flarkaudio-STEMWERK-Android-debug.apk
           sha256sum out/*.apk > out/SHA256SUMS.txt
 
-      - name: Create/update nightly release (gh cli)
+      - name: Create/update nightly release (delete assets by name then upload)
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
+
           # Ensure release exists
           if ! gh release view nightly >/dev/null 2>&1; then
             gh release create nightly --prerelease --title "Nightly (debug)" --notes "Automated nightly debug build." || true
           fi
-          # Upload/replace assets
-          gh release upload nightly out/flarkaudio-STEMWERK-Android-debug.apk out/SHA256SUMS.txt --clobber
+
+          # Delete existing assets with same names (gh upload --clobber is flaky for us)
+          JSON=$(gh release view nightly --json assets)
+
+          delete_by_name () {
+            local name="$1"
+            local ids
+            ids=$(echo "$JSON" | python3 - <<PY
+import json,sys
+j=json.load(sys.stdin)
+print("\n".join(str(a["id"]) for a in j.get("assets",[]) if a.get("name")=="$name"))
+PY
+)
+            for id in $ids; do
+              echo "Deleting asset id=$id name=$name"
+              gh api --method DELETE "/repos/${{ github.repository }}/releases/assets/$id" || true
+            done
+          }
+
+          delete_by_name flarkaudio-STEMWERK-Android-debug.apk
+          delete_by_name SHA256SUMS.txt
+
+          # Upload
+          gh release upload nightly out/flarkaudio-STEMWERK-Android-debug.apk out/SHA256SUMS.txt
