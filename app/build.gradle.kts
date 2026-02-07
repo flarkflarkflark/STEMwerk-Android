@@ -11,8 +11,8 @@ android {
         applicationId = "com.flark.stemwerk"
         minSdk = 26
         targetSdk = 34
-        versionCode = 13
-        versionName = "0.3.0"
+        versionCode = 14
+        versionName = "0.3.1"
 
         // We start with ARM64 only (ZenFone 10). Add armeabi-v7a later if needed.
         ndk {
@@ -56,5 +56,5 @@ dependencies {
     // FFmpeg integration TBD.
     // PyTorch Android (Lite interpreter) for Demucs (WIP)
     implementation("org.pytorch:pytorch_android_lite:1.13.1")
-    implementation("org.pytorch:pytorch_android_torchvision_lite:1.13.1")
+    // NOTE: Avoid torchvision_lite unless needed (keeps APK size down).
 }
