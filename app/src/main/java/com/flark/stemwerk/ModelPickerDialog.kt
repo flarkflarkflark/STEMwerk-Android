@@ -3,14 +3,14 @@ package com.flark.stemwerk
 import android.app.AlertDialog
 import android.content.Context
 
-/** Minimal picker; replace with real model selection UI if needed. */
 object ModelPickerDialog {
     fun show(ctx: Context, onChosen: (String) -> Unit) {
-        val items = arrayOf("models-v0.1")
+        val ids = arrayOf("uvr-mdx-voc-ft")
+        val labels = arrayOf("UVR MDX Vocals — 2 stems (ONNX)")
         AlertDialog.Builder(ctx)
             .setTitle("Pick model")
-            .setItems(items) { _, which ->
-                onChosen(items[which])
+            .setItems(labels) { _, which ->
+                onChosen(ids[which])
             }
             .show()
     }
