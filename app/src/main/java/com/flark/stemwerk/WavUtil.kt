@@ -38,19 +38,22 @@ object WavUtil {
         var dataOffset = 0
         var dataSize = 0
 
-        fun leInt(off: Int): Int = ByteBuffer.wrap(bytes, off, 4).order(ByteOrder.LITTLE_ENDIAN).int
-        fun leShort(off: Int): Int = ByteBuffer.wrap(bytes, off, 2).order(ByteOrder.LITTLE_ENDIAN).short.toInt() and 0xFFFF
+        fun leInt(off: Int): Int =
+            ByteBuffer.wrap(bytes, off, 4).order(ByteOrder.LITTLE_ENDIAN).int
+
+        fun leShort(off: Int): Int =
+            ByteBuffer.wrap(bytes, off, 2).order(ByteOrder.LITTLE_ENDIAN).short.toInt() and 0xFFFF
 
         while (pos + 8 <= bytes.size) {
             val chunkId = bytes.copyOfRange(pos, pos + 4).toString(Charsets.US_ASCII)
             val chunkSize = leInt(pos + 4)
             val chunkData = pos + 8
-
-            if (chunkData + chunkSize > bytes.size) break
+            if (chunkSize < 0 || chunkData > bytes.size - chunkSize) break
 
             when (chunkId) {
                 "fmt " -> {
-                    audioFormat = leShort(chunkData + 0)
+                    if (chunkSize < 16) throw IllegalArgumentException("WAV fmt chunk is truncated")
+                    audioFormat = leShort(chunkData)
                     channels = leShort(chunkData + 2)
                     sampleRate = leInt(chunkData + 4)
                     bitsPerSample = leShort(chunkData + 14)
@@ -63,7 +66,6 @@ object WavUtil {
                 }
             }
 
-            // chunks are word-aligned
             pos = chunkData + chunkSize + (chunkSize % 2)
             if (fmtFound && dataFound) break
         }
@@ -72,37 +74,42 @@ object WavUtil {
         if (!dataFound) throw IllegalArgumentException("WAV missing data chunk")
         if (audioFormat != 1) throw IllegalArgumentException("Only PCM WAV supported (format=$audioFormat)")
         if (bitsPerSample != 16) throw IllegalArgumentException("Only 16-bit WAV supported (bits=$bitsPerSample)")
+        if (channels !in 1..2) throw IllegalArgumentException("Only mono or stereo WAV supported (channels=$channels)")
+        if (sampleRate != 44_100) {
+            throw IllegalArgumentException(
+                "This mobile model expects 44.1 kHz WAV (received ${sampleRate} Hz)"
+            )
+        }
 
         val pcm = bytes.copyOfRange(dataOffset, dataOffset + dataSize)
-        val info = WavInfo(sampleRate, channels, bitsPerSample, dataOffset, dataSize)
-        return info to pcm
+        return WavInfo(sampleRate, channels, bitsPerSample, dataOffset, dataSize) to pcm
     }
 
-    fun writePcm16Wav(out: OutputStream, info: WavInfo, pcm: ByteArray) {
+    fun writePcm16WavHeader(out: OutputStream, info: WavInfo, pcmSize: Long) {
+        require(pcmSize in 0..0xFFFFFFFFL) { "PCM output is too large for a RIFF WAV" }
+
         val byteRate = info.sampleRate * info.channels * (info.bitsPerSample / 8)
         val blockAlign = info.channels * (info.bitsPerSample / 8)
-
-        val headerSize = 44
-        val totalSize = headerSize + pcm.size
-        val bb = ByteBuffer.allocate(headerSize).order(ByteOrder.LITTLE_ENDIAN)
+        val bb = ByteBuffer.allocate(44).order(ByteOrder.LITTLE_ENDIAN)
 
         bb.put("RIFF".toByteArray(Charsets.US_ASCII))
-        bb.putInt(totalSize - 8)
+        bb.putInt((36L + pcmSize).toInt())
         bb.put("WAVE".toByteArray(Charsets.US_ASCII))
-
         bb.put("fmt ".toByteArray(Charsets.US_ASCII))
         bb.putInt(16)
-        bb.putShort(1) // PCM
+        bb.putShort(1)
         bb.putShort(info.channels.toShort())
         bb.putInt(info.sampleRate)
         bb.putInt(byteRate)
         bb.putShort(blockAlign.toShort())
         bb.putShort(info.bitsPerSample.toShort())
-
         bb.put("data".toByteArray(Charsets.US_ASCII))
-        bb.putInt(pcm.size)
-
+        bb.putInt(pcmSize.toInt())
         out.write(bb.array())
+    }
+
+    fun writePcm16Wav(out: OutputStream, info: WavInfo, pcm: ByteArray) {
+        writePcm16WavHeader(out, info, pcm.size.toLong())
         out.write(pcm)
     }
 
