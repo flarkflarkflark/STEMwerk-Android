@@ -1,0 +1,48 @@
+name: Verify mobile models
+on:
+  push:
+    branches: ["android/**"]
+    paths: [".github/workflows/verify-mobile-models.yml"]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  models:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install onnxruntime==1.20.0 numpy
+      - name: Verify model metadata and run real CPU inference
+        run: |
+          python - <<'PY'
+          import urllib.request, hashlib, json, numpy as np, onnxruntime as ort
+          metadata = json.load(urllib.request.urlopen("https://raw.githubusercontent.com/TRvlvr/application_data/main/mdx_model_data/model_data_new.json"))
+          records = []
+          for name in ["UVR-MDX-NET-Voc_FT.onnx"] + ["kuielab_a_" + stem + ".onnx" for stem in ["vocals", "drums", "bass", "other"]]:
+              url = "https://github.com/TRvlvr/model_repo/releases/download/all_public_uvr_models/" + name
+              urllib.request.urlretrieve(url, name)
+              data = open(name, "rb").read()
+              digest = hashlib.md5(data[-10000*1024:]).hexdigest()
+              params = metadata[digest]
+              opts = ort.SessionOptions()
+              opts.intra_op_num_threads = 2
+              session = ort.InferenceSession(name, sess_options=opts, providers=["CPUExecutionProvider"])
+              spec = session.get_inputs()[0]
+              shape = [1,4,params["mdx_dim_f_set"],2 ** params["mdx_dim_t_set"]]
+              x = np.random.default_rng(42).normal(0,0.1,shape).astype(np.float32)
+              y = session.run(None,{spec.name:x})[0]
+              assert y.shape == x.shape and np.isfinite(y).all()
+              assert not np.allclose(y,x) and np.max(np.abs(y)) > 0
+              record = dict(file=name, sha256=hashlib.sha256(data).hexdigest(), size=len(data), params=params, input=spec.name, shape=spec.shape, result="CPU inference PASS")
+              records.append(record)
+              print(json.dumps(record), flush=True)
+              del session
+          open("verified-models.json","w").write(json.dumps(records,indent=2))
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: verified-mobile-models
+          path: verified-models.json
