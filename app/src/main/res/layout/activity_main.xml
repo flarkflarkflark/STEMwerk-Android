@@ -30,7 +30,7 @@
             android:id="@+id/statusText"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="Status: idle"
+            android:text="Status: idle — mobile backend pending"
             android:textSize="14sp"
             android:paddingTop="8dp" />
 
@@ -129,7 +129,7 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:paddingTop="12dp"
-            android:text="Tip: For now, WAV (PCM16) input only. Real Demucs separation is coming next." />
+            android:text="Foundation build: model download and UI plumbing are present, but no fake stems are written. Real 2-/4-stem mobile inference follows the model export/parity test." />
 
     </LinearLayout>
 </ScrollView>
