@@ -40,9 +40,10 @@ class ProcessingActivity : AppCompatActivity() {
 
         val audioUri = Uri.parse(intent.getStringExtra("audioUri") ?: "")
         val modelId = intent.getStringExtra("modelId") ?: ""
-        val stems = intent.getIntExtra("stems", 4)
+        val stems = intent.getIntExtra("stems", 2)
         val selectedStems = intent.getStringArrayExtra("selectedStems")?.toList()
-            ?: listOf("drums", "bass", "other", "vocals")
+            ?: listOf("vocals", "other")
+        val backend = InferenceBackend.fromId(intent.getStringExtra("backend"))
         val outputFolderUriStr = intent.getStringExtra("outputFolderUri")
 
         val outDir = File(getExternalFilesDir(null), "outputs/run_${System.currentTimeMillis()}")
@@ -71,9 +72,6 @@ class ProcessingActivity : AppCompatActivity() {
             runOnUiThread {
                 progressText.text = msg
                 closeButton.isEnabled = true
-
-                // Sharing is enabled only after a real backend has written output.
-                // The current foundation build deliberately writes nothing.
                 if (ok) {
                     zipFile = runCatching { zipOutputDir(outDir) }.getOrNull()
                     shareButton.isEnabled = (zipFile != null)
@@ -83,9 +81,10 @@ class ProcessingActivity : AppCompatActivity() {
             }
         }
 
-        progress(1, "Starting…")
+        progress(1, "Starting real extraction…")
+        log("Backend: $backend")
 
-        val engine: SeparationEngine = UnavailableSeparationEngine()
+        val engine: SeparationEngine = RealMdxSeparationEngine(applicationContext)
         separationEngine = engine
         engine.run(
             request = SeparationRequest(
@@ -94,6 +93,7 @@ class ProcessingActivity : AppCompatActivity() {
                 stemCount = stems,
                 selectedStemNames = selectedStems,
                 output = outputSink,
+                backend = backend,
             ),
             onLog = ::log,
             onProgress = ::progress,
