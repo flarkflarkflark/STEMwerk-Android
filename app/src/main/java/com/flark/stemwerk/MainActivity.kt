@@ -110,7 +110,7 @@ class MainActivity : AppCompatActivity() {
         outText.text = outputFolderUri?.toString() ?: "Not set (will use app folder)"
 
         val ready = (audioUri != null && modelId != null)
-        status.text = "Status: idle (v${BuildConfig.VERSION_NAME})"
+        status.text = "Status: idle — mobile backend pending (v${BuildConfig.VERSION_NAME})"
         findViewById<Button>(R.id.startButton).isEnabled = ready
     }
 
