@@ -1,6 +1,5 @@
 package com.flark.stemwerk
 
-import android.app.Activity
 import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
@@ -42,7 +41,6 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
-        // Restore output folder
         prefs.getString("outputFolderUri", null)?.let {
             runCatching { outputFolderUri = Uri.parse(it) }
         }
@@ -54,8 +52,6 @@ class MainActivity : AppCompatActivity() {
         }
 
         findViewById<Button>(R.id.pickModelButton).setOnClickListener {
-            // Existing model picker logic (from releases) lives elsewhere; keep modelId as-is.
-            // For now we just re-use the current flow: model already downloaded/selected in app state.
             ModelPickerDialog.show(this) { chosenId ->
                 modelId = chosenId
                 updateUi()
@@ -118,12 +114,32 @@ class MainActivity : AppCompatActivity() {
         val web = findViewById<WebView>(R.id.logoWebView)
         val fallback = findViewById<ImageView>(R.id.logoFallback)
 
-        web.settings.javaScriptEnabled = true
+        web.settings.javaScriptEnabled = false
         web.settings.allowFileAccess = true
         web.setBackgroundColor(0x00000000)
 
+        val html = """
+            <!doctype html>
+            <html>
+              <head>
+                <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+              </head>
+              <body style="margin:0;padding:0;background:#1A1A1F;display:flex;align-items:center;justify-content:center;overflow:hidden;">
+                <img src="stemwerk_installer.svg"
+                     alt="STEMwerk"
+                     style="display:block;width:100%;height:100%;object-fit:contain;" />
+              </body>
+            </html>
+        """.trimIndent()
+
         try {
-            web.loadUrl("file:///android_asset/stemwerk_dynamic.svg")
+            web.loadDataWithBaseURL(
+                "file:///android_asset/",
+                html,
+                "text/html",
+                "UTF-8",
+                null
+            )
             fallback.visibility = ImageView.GONE
         } catch (_: Exception) {
             fallback.visibility = ImageView.VISIBLE
