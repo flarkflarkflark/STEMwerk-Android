@@ -13,7 +13,7 @@
 
         <FrameLayout
             android:layout_width="match_parent"
-            android:layout_height="160dp"
+            android:layout_height="96dp"
             android:background="@color/stemwerk_bg_top"
             android:padding="8dp">
 
