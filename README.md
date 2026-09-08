@@ -20,6 +20,18 @@ The repository contains the Android UI and model-download plumbing. The current 
 
 This build deliberately does **not** write dummy stems. Until a portable model/backend has passed parity checks against STEMwerk-core, a separation request ends with a clear “backend not available” result.
 
+## Visual direction
+
+The Android GUI follows the STEMwerk REAPER Lua GUI as its visual source:
+
+- Lua classic dark palette and semantic colors;
+- four Lua stem colors for vocals, drums, bass and other;
+- animated STEMwerk/flarkAUDIO artwork from the REAPER visual assets;
+- matching dark surfaces, accent buttons and primary action treatment;
+- native Android controls and touch-sized spacing around that visual language.
+
+The mapping is documented in docs/reaper-ui-parity.md. The Android UI is a native adaptation; the Lua files remain the source of truth for visual identity.
+
 ## Runtime direction
 
 The runtime is intentionally not hard-coded before model export has been validated. Candidates are:
