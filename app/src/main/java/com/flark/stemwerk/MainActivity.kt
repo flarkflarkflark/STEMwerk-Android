@@ -16,6 +16,7 @@ class MainActivity : AppCompatActivity() {
     private var audioUri: Uri? = null
     private var modelId: String? = null
     private var outputFolderUri: Uri? = null
+    private var backendId: String = "auto"
 
     private val prefs by lazy { getSharedPreferences("stemwerk", MODE_PRIVATE) }
 
@@ -58,6 +59,13 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
+        findViewById<Button>(R.id.pickBackendButton).setOnClickListener {
+            BackendPickerDialog.show(this, backendId) { chosenId ->
+                backendId = chosenId
+                updateUi()
+            }
+        }
+
         findViewById<Button>(R.id.pickOutputFolderButton).setOnClickListener {
             pickOutputFolder.launch(null)
         }
@@ -66,14 +74,12 @@ class MainActivity : AppCompatActivity() {
             val a = audioUri ?: return@setOnClickListener
             val m = modelId ?: return@setOnClickListener
 
-            val stems = 4
-            val selected = selectedStemNames()
-
             val i = Intent(this, ProcessingActivity::class.java)
             i.putExtra("audioUri", a.toString())
             i.putExtra("modelId", m)
-            i.putExtra("stems", stems)
-            i.putExtra("selectedStems", selected.toTypedArray())
+            i.putExtra("stems", 2)
+            i.putExtra("selectedStems", selectedStemNames().toTypedArray())
+            i.putExtra("backend", backendId)
             i.putExtra("outputFolderUri", outputFolderUri?.toString())
             startActivity(i)
         }
@@ -82,16 +88,9 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun selectedStemNames(): List<String> {
-        val vocals = findViewById<CheckBox>(R.id.stemVocals).isChecked
-        val drums = findViewById<CheckBox>(R.id.stemDrums).isChecked
-        val bass = findViewById<CheckBox>(R.id.stemBass).isChecked
-        val other = findViewById<CheckBox>(R.id.stemOther).isChecked
-
         val out = mutableListOf<String>()
-        if (drums) out += "drums"
-        if (bass) out += "bass"
-        if (other) out += "other"
-        if (vocals) out += "vocals"
+        if (findViewById<CheckBox>(R.id.stemVocals).isChecked) out += "vocals"
+        if (findViewById<CheckBox>(R.id.stemOther).isChecked) out += "other"
         return out
     }
 
@@ -99,14 +98,16 @@ class MainActivity : AppCompatActivity() {
         val status = findViewById<TextView>(R.id.statusText)
         val audioText = findViewById<TextView>(R.id.audioSelectedText)
         val modelText = findViewById<TextView>(R.id.modelSelectedText)
+        val backendText = findViewById<TextView>(R.id.backendSelectedText)
         val outText = findViewById<TextView>(R.id.outputFolderText)
 
         audioText.text = audioUri?.toString() ?: "No audio selected"
         modelText.text = modelId ?: "No model selected"
+        backendText.text = BackendPickerDialog.label(backendId)
         outText.text = outputFolderUri?.toString() ?: "Not set (will use app folder)"
 
-        val ready = (audioUri != null && modelId != null)
-        status.text = "Status: idle — mobile backend pending (v${BuildConfig.VERSION_NAME})"
+        val ready = (audioUri != null && modelId != null && selectedStemNames().isNotEmpty())
+        status.text = "Status: idle — real 2-stem MDX ready (v${BuildConfig.VERSION_NAME})"
         findViewById<Button>(R.id.startButton).isEnabled = ready
     }
 
