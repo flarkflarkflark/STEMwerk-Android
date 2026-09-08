@@ -3,7 +3,7 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:orientation="vertical"
-    android:background="#111111"
+    android:background="@color/stemwerk_bg_top"
     android:padding="16dp">
 
     <TextView
@@ -13,7 +13,7 @@
         android:text="Processing…"
         android:textStyle="bold"
         android:textSize="18sp"
-        android:textColor="#FFFFFF" />
+        android:textColor="@color/stemwerk_text_primary" />
 
     <ProgressBar
         android:id="@+id/progressBar"
@@ -21,6 +21,7 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_marginTop="12dp"
+        android:progressTint="@color/stemwerk_accent"
         android:max="100" />
 
     <TextView
@@ -29,13 +30,15 @@
         android:layout_height="wrap_content"
         android:layout_marginTop="8dp"
         android:text="Starting…"
-        android:textColor="#DDDDDD" />
+        android:textColor="@color/stemwerk_text_secondary" />
 
     <ScrollView
         android:layout_width="match_parent"
         android:layout_height="0dp"
         android:layout_weight="1"
-        android:layout_marginTop="12dp">
+        android:layout_marginTop="12dp"
+        android:background="@color/stemwerk_card"
+        android:padding="10dp">
 
         <TextView
             android:id="@+id/logText"
@@ -43,7 +46,7 @@
             android:layout_height="wrap_content"
             android:textSize="12sp"
             android:typeface="monospace"
-            android:textColor="#BBBBBB"
+            android:textColor="@color/stemwerk_text_muted"
             android:text="" />
 
     </ScrollView>
@@ -52,6 +55,9 @@
         android:id="@+id/shareButton"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
+        android:layout_marginTop="12dp"
+        android:backgroundTint="@color/stemwerk_button"
+        android:textColor="@color/stemwerk_button_text"
         android:text="Share output (.zip)"
         android:enabled="false" />
 
@@ -60,6 +66,8 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_marginTop="8dp"
+        android:backgroundTint="@color/stemwerk_button_primary"
+        android:textColor="@color/stemwerk_button_text"
         android:text="Close"
         android:enabled="false" />
 
