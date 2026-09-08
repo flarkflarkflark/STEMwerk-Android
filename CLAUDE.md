@@ -1,15 +1,41 @@
 # STEMwerk-Android (Claude context)
 
-- Target device: Asus ZenFone 10 (Snapdragon 8 Gen 2, ARM64)
-- Offline stem separation app.
-- User chooses 2/4/6 stems. Models can be downloaded once.
+- Target device: Asus ZenFone 10 (Snapdragon 8 Gen 2, ARM64).
+- Product: native Android frontend for STEMwerk.
+- First mobile scope: offline 2-/4-stem separation.
+- DrumSep is later scope, not a requirement for the first Android backend.
+- Models are downloaded once, verified and cached.
+- MVP starts CPU-first; hardware acceleration is an adapter concern.
 
-Constraints:
-- Avoid huge APK: models should be downloaded and cached.
-- MVP: CPU-only; later optional NNAPI.
+## Hard constraints
 
-Implementation plan:
-- Kotlin app skeleton
-- ModelManager: download/caching/versioning
-- SeparationEngine interface: run(file, stems, modelPath, progress)
-- ForegroundService for long-running split jobs
+- Do not upload user audio to a cloud service.
+- Do not ship large model files inside the APK.
+- Do not produce copied or dummy stems when inference is unavailable.
+- Do not select a runtime solely because it is convenient before model export/parity is proven.
+- Keep Android-specific inference behind SeparationEngine.
+
+## Current slice
+
+The mobile foundation contains:
+
+- Kotlin UI and Storage Access Framework plumbing;
+- model download/cache plumbing;
+- SeparationRequest and SeparationEngine contracts;
+- an explicit unavailable-backend implementation;
+- no legacy PyTorch Lite dependency.
+
+The foundation build is expected to report that mobile inference is unavailable. That is intentional until a real model/backend is integrated.
+
+## Next engineering gate
+
+Choose one portable 2- or 4-stem model and document:
+
+- export command and source model revision;
+- tensor layouts and sample-rate/channel contract;
+- chunk/overlap and reconstruction rules;
+- model checksum and manifest entry;
+- numerical parity against STEMwerk-core;
+- ARM64 device smoke results.
+
+Only after that gate should a real ExecuTorch, ONNX Runtime Mobile or LiteRT dependency be added.
