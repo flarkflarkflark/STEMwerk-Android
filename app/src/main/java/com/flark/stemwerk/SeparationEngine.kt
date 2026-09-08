@@ -2,12 +2,26 @@ package com.flark.stemwerk
 
 import android.net.Uri
 
+enum class InferenceBackend {
+    AUTO,
+    CPU,
+    NNAPI;
+
+    companion object {
+        fun fromId(id: String?): InferenceBackend = when (id?.lowercase()) {
+            "cpu" -> CPU
+            "nnapi", "hardware" -> NNAPI
+            else -> AUTO
+        }
+    }
+}
+
 /**
  * Request passed to a mobile inference backend.
  *
  * The request deliberately contains model metadata and the output sink so that
- * the Android UI does not need to know whether the backend is ExecuTorch,
- * ONNX Runtime, LiteRT, or a device-specific accelerator.
+ * the Android UI does not need to know whether the backend is ONNX Runtime,
+ * ExecuTorch, LiteRT, or a device-specific accelerator.
  */
 data class SeparationRequest(
     val audioUri: Uri,
@@ -15,6 +29,7 @@ data class SeparationRequest(
     val stemCount: Int,
     val selectedStemNames: List<String>,
     val output: OutputSink,
+    val backend: InferenceBackend = InferenceBackend.AUTO,
 )
 
 /**
@@ -35,11 +50,10 @@ interface SeparationEngine {
 }
 
 /**
- * Explicit placeholder until a portable 2-/4-stem model has passed parity
- * testing against STEMwerk-core.
+ * Kept for callers that want an explicit unavailable implementation.
+ * Production Android processing uses RealMdxSeparationEngine.
  */
 class UnavailableSeparationEngine : SeparationEngine {
-
     @Volatile
     private var cancelled = false
 
@@ -54,7 +68,7 @@ class UnavailableSeparationEngine : SeparationEngine {
         onLog("Audio URI: ${request.audioUri}")
         onLog("Requested model: ${request.modelId}")
         onLog("Requested stems: ${request.selectedStemNames.joinToString()}")
-        onLog("Model count: ${request.stemCount}")
+        onLog("Requested backend: ${request.backend}")
 
         if (cancelled) {
             onDone(false, "Cancelled")
