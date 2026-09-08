@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- STEMwerk Lua classic dark palette, normalized for Android UI. -->
+    <color name="stemwerk_bg">#2E2E33</color>
+    <color name="stemwerk_bg_top">#1A1A1F</color>
+    <color name="stemwerk_panel">#2E3036</color>
+    <color name="stemwerk_card">#1F1F24</color>
+    <color name="stemwerk_input">#1F1F24</color>
+    <color name="stemwerk_border">#999999</color>
+    <color name="stemwerk_text_primary">#F2F2F5</color>
+    <color name="stemwerk_text_secondary">#B8B8C2</color>
+    <color name="stemwerk_text_muted">#8F8F99</color>
+    <color name="stemwerk_accent">#4D80CC</color>
+    <color name="stemwerk_accent_hover">#6699E6</color>
+    <color name="stemwerk_button">#3366B3</color>
+    <color name="stemwerk_button_primary">#33804D</color>
+    <color name="stemwerk_button_text">#FFFFFF</color>
+
+    <!-- Same order as STEM_BORDER_COLORS in the Lua UI. -->
+    <color name="stemwerk_vocals">#FF6464</color>
+    <color name="stemwerk_drums">#64C8FF</color>
+    <color name="stemwerk_bass">#9664FF</color>
+    <color name="stemwerk_other">#64FF96</color>
+
+    <color name="stemwerk_logo_orange">#FF8A1F</color>
+    <color name="stemwerk_icon_background">#111116</color>
+</resources>
