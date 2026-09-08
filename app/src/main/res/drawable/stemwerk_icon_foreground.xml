@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!-- Abstract four-stem mark using the same Lua stem colors. -->
+    <path
+        android:fillColor="@color/stemwerk_vocals"
+        android:pathData="M12,27h16v45h-16z" />
+    <path
+        android:fillColor="@color/stemwerk_drums"
+        android:pathData="M32,19h16v53h-16z" />
+    <path
+        android:fillColor="@color/stemwerk_bass"
+        android:pathData="M52,30h16v42h-16z" />
+    <path
+        android:fillColor="@color/stemwerk_other"
+        android:pathData="M72,14h16v58h-16z" />
+
+    <path
+        android:fillColor="@color/stemwerk_logo_orange"
+        android:pathData="M12,82 C26,74 38,92 52,82 C66,72 76,91 94,79 L94,85 C76,98 66,80 52,89 C38,99 26,82 12,90 Z" />
+</vector>
