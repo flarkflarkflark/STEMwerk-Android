@@ -67,8 +67,8 @@ jobs:
         with:
           api-level: 34
           arch: x86_64
-          target: google_apis
-          ram-size: 3072M
+          target: default
+          ram-size: 6144M
           heap-size: 512M
           disable-animations: true
           script: |

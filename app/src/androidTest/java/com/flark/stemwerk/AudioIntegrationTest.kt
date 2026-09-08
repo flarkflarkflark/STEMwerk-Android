@@ -83,7 +83,10 @@ class AudioIntegrationTest {
         val cache = cacheVocalModel()
         try {
             val lines = mutableListOf<String>()
-            AccelerationProbe(instrumentation.targetContext).run(ModelManager.TWO_STEMS, {}, lines::add)
+            AccelerationProbe(instrumentation.targetContext).run(ModelManager.TWO_STEMS, {}, {
+                lines.add(it)
+                android.util.Log.i("STEMwerkProbeTest", it)
+            })
             assertTrue(lines.any { it.startsWith("CPU mean:") })
             assertTrue(lines.any { it.contains("NNAPI ACCELERATION CONFIRMED") ||
                 it.contains("NO ACCELERATION CONFIRMED") || it.contains("NNAPI UNAVAILABLE OR FAILED") ||

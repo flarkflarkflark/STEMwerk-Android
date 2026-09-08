@@ -31,9 +31,11 @@ class AccelerationProbe(private val context: Context) {
             log("SHA256: " + model.sha256)
             val random = java.util.Random(42)
             val spectrum = FloatArray(4 * model.dimF * model.dimT) { (random.nextGaussian() * 0.1).toFloat() }
+            log("Running CPU warm-up and measurements…")
             val cpu = measure(model, file, spectrum, false, checkCancelled)
             log("CPU mean: " + "%.1f".format(cpu.milliseconds) + " ms")
             try {
+                log("Running NNAPI warm-up and measurements…")
                 val hardware = measure(model, file, spectrum, true, checkCancelled)
                 val nnapiEvents = hardware.providers.filterKeys { it.contains("nnapi", true) }.values.sum()
                 log("Executed provider events: " + hardware.providers)
@@ -110,4 +112,3 @@ class AccelerationProbe(private val context: Context) {
         } finally { work.deleteRecursively() }
     }
 }
-
