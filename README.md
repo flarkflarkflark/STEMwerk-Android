@@ -2,60 +2,65 @@
 
 Android frontend for STEMwerk, targeting ARM64 devices such as the Asus ZenFone 10.
 
+## Current mobile slice
+
+The branch `android/v0.4.0-mobile-foundation` now contains a working local 2-stem extraction path:
+
+- real UVR MDX vocals ONNX model;
+- PCM16LE stereo/mono WAV at 44.1 kHz;
+- ONNX Runtime on Android;
+- selectable ARM64 CPU or Android NNAPI hardware route;
+- Auto route: try NNAPI and fall back to CPU if the device/model rejects it;
+- cached model download and local WAV output;
+- no cloud upload and no dummy stems.
+
+The first run downloads the model to the app's private model cache. The model is roughly a large desktop-sized download, so the first extraction takes longer than later runs.
+
+The current model writes:
+
+- `vocals.wav`;
+- `other.wav` (instrumental/residual).
+
+Drums and bass remain deliberately out of scope for this slice, as agreed. Four-stem coverage will use additional portable models after the two-stem path has been verified on the ZenFone 10.
+
 ## Product boundary
-
-The first mobile milestone is intentionally smaller than desktop STEMwerk:
-
-- local/offline 2- or 4-stem separation;
-- CPU-first execution on ARM64;
-- downloaded and verified model cache;
-- no DrumSep in the first mobile milestone;
-- no cloud upload requirement.
 
 The Android app is a separate native frontend. It does not run REAPER and does not embed the desktop PySide6 UI.
 
-## Current status
-
-The repository contains the Android UI and model-download plumbing. The current android/v0.4.0-mobile-foundation slice adds an explicit SeparationEngine contract and removes the legacy PyTorch Lite dependency.
-
-This build deliberately does **not** write dummy stems. Until a portable model/backend has passed parity checks against STEMwerk-core, a separation request ends with a clear “backend not available” result.
-
-## Visual direction
-
-The Android GUI follows the STEMwerk REAPER Lua GUI as its visual source:
+The GUI follows the STEMwerk REAPER Lua GUI as its visual source:
 
 - Lua classic dark palette and semantic colors;
-- four Lua stem colors for vocals, drums, bass and other;
-- animated STEMwerk/flarkAUDIO artwork from the REAPER visual assets;
-- matching dark surfaces, accent buttons and primary action treatment;
-- native Android controls and touch-sized spacing around that visual language.
+- the compact STEMwerk installer artwork;
+- native Android controls and touch-sized spacing;
+- matching dark surfaces and stem colors.
 
-The mapping is documented in docs/reaper-ui-parity.md. The Android UI is a native adaptation; the Lua files remain the source of truth for visual identity.
+The mapping is documented in [docs/reaper-ui-parity.md](docs/reaper-ui-parity.md).
 
-## Runtime direction
+## Runtime details
 
-The runtime is intentionally not hard-coded before model export has been validated. Candidates are:
+The extraction path is implemented behind `SeparationEngine`:
 
-- ExecuTorch with XNNPACK for the first CPU path, followed later by Vulkan or Qualcomm/MediaTek backends where useful;
-- ONNX Runtime Mobile if the exported model and operators fit that runtime;
-- LiteRT if the export path gives better Android CPU/GPU/NPU coverage.
+1. `RealMdxSeparationEngine` reads the selected WAV locally and manages the model cache.
+2. `OnnxMdxSeparator` performs the MDX STFT, ONNX inference, inverse STFT and residual reconstruction.
+3. `OutputSink` writes the selected WAV stems to the app folder or Android document-tree folder.
 
-The UI talks only to SeparationEngine; the eventual runtime is an implementation detail behind that boundary.
+The NNAPI route means Android selects an available device accelerator through the Android neural-network API. It is not a promise that every phone exposes a GPU delegate for this model; Auto safely falls back to the CPU route. This is the Android equivalent of choosing a hardware path, not Apple's MPS.
 
-## Model parity gate
+## Input requirements
 
-Before enabling real separation, the selected 2-/4-stem model must have:
+The first real model slice accepts:
 
-1. a reproducible export from the STEMwerk model path;
-2. documented input/output tensor layout, sample rate, channels, chunking and overlap;
-3. verified checksum and manifest metadata;
-4. numerical/output parity checks against the desktop reference;
-5. a real-device smoke test on ARM64.
+- RIFF/WAVE PCM;
+- 16-bit little-endian samples;
+- mono or stereo;
+- 44.1 kHz.
 
-## Planned next slices
+Other formats and sample rates need a decoder/resampler slice before they can be sent to the model. Desktop formats remain supported by the desktop STEMwerk implementations.
 
-1. Export one 2- or 4-stem model and run the parity gate.
-2. Add the chosen mobile runtime behind SeparationEngine.
-3. Replace the placeholder processing path with foreground-service execution, progress and cancellation.
-4. Add optional Vulkan/NPU acceleration after the CPU path is stable.
+## Next slices
+
+1. Test real outputs on the ZenFone 10 and compare against the desktop reference.
+2. Improve input decoding/resampling and foreground-service behavior for long jobs.
+3. Add portable four-stem coverage.
+4. Add optional Vulkan/NPU-specific acceleration if the device/runtime combination benefits from it.
 5. Add broader model coverage later, including DrumSep.
