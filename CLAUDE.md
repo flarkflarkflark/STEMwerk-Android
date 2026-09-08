@@ -14,6 +14,7 @@
 - Do not produce copied or dummy stems when inference is unavailable.
 - Do not select a runtime solely because it is convenient before model export/parity is proven.
 - Keep Android-specific inference behind SeparationEngine.
+- Keep the Lua GUI in STEMwerk-reaper as the visual source of truth.
 
 ## Current slice
 
@@ -23,9 +24,21 @@ The mobile foundation contains:
 - model download/cache plumbing;
 - SeparationRequest and SeparationEngine contracts;
 - an explicit unavailable-backend implementation;
-- no legacy PyTorch Lite dependency.
+- no legacy PyTorch Lite dependency;
+- Android colors, artwork and launcher mark mapped from the Lua classic dark palette.
 
 The foundation build is expected to report that mobile inference is unavailable. That is intentional until a real model/backend is integrated.
+
+## Visual parity references
+
+Use these STEMwerk-reaper files when changing the Android UI:
+
+- scripts/reaper/_internal/STEMwerk_UI.lua;
+- scripts/reaper/_internal/STEMwerk_UI_Tokens.lua;
+- scripts/reaper/_internal/STEMwerk_UI_Draw.lua;
+- scripts/reaper/_internal/STEMwerk_UI_Backgrounds.lua.
+
+Preserve the Lua stem color order: vocals, drums, bass, other.
 
 ## Next engineering gate
 
