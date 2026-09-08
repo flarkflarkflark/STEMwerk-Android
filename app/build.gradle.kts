@@ -11,8 +11,8 @@ android {
         applicationId = "com.flark.stemwerk"
         minSdk = 26
         targetSdk = 34
-        versionCode = 14
-        versionName = "0.3.1"
+        versionCode = 15
+        versionName = "0.4.0"
 
         // We start with ARM64 only (ZenFone 10). Add armeabi-v7a later if needed.
         ndk {
@@ -51,10 +51,7 @@ dependencies {
     implementation("androidx.appcompat:appcompat:1.7.0")
     implementation("com.google.android.material:material:1.12.0")
 
-    // Future:
-    // implementation("com.microsoft.onnxruntime:onnxruntime-android:1.17.3")
-    // FFmpeg integration TBD.
-    // PyTorch Android (Lite interpreter) for Demucs (WIP)
-    implementation("org.pytorch:pytorch_android_lite:1.13.1")
-    // NOTE: Avoid torchvision_lite unless needed (keeps APK size down).
+    // The mobile inference runtime will be selected after the 2-/4-stem
+    // model-export/parity spike. Do not ship a legacy runtime speculatively.
+    // Candidate: ExecuTorch, ONNX Runtime Mobile, or LiteRT.
 }
