@@ -11,12 +11,14 @@ android {
         applicationId = "com.flark.stemwerk"
         minSdk = 26
         targetSdk = 34
-        versionCode = 16
-        versionName = "0.4.0"
+        versionCode = 17
+        versionName = "0.4.1"
+        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
         // We start with ARM64 only (ZenFone 10). Add armeabi-v7a later if needed.
         ndk {
             abiFilters += listOf("arm64-v8a")
+            if (project.hasProperty("testEmulator")) abiFilters += "x86_64"
         }
     }
 
@@ -45,6 +47,9 @@ android {
 }
 
 dependencies {
+    testImplementation("junit:junit:4.13.2")
+    androidTestImplementation("androidx.test:runner:1.6.1")
+    androidTestImplementation("androidx.test.ext:junit:1.2.1")
     implementation("com.caverock:androidsvg:1.4")
 
     // Portable MDX inference on Android. CPU is always available; NNAPI is

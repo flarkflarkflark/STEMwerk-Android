@@ -75,18 +75,15 @@ object WavUtil {
         if (audioFormat != 1) throw IllegalArgumentException("Only PCM WAV supported (format=$audioFormat)")
         if (bitsPerSample != 16) throw IllegalArgumentException("Only 16-bit WAV supported (bits=$bitsPerSample)")
         if (channels !in 1..2) throw IllegalArgumentException("Only mono or stereo WAV supported (channels=$channels)")
-        if (sampleRate != 44_100) {
-            throw IllegalArgumentException(
-                "This mobile model expects 44.1 kHz WAV (received ${sampleRate} Hz)"
-            )
-        }
+        require(sampleRate in 8000..192000) { "Unsupported WAV sample rate" }
+        require(dataSize % (2 * channels) == 0) { "Incomplete WAV frame" }
 
         val pcm = bytes.copyOfRange(dataOffset, dataOffset + dataSize)
         return WavInfo(sampleRate, channels, bitsPerSample, dataOffset, dataSize) to pcm
     }
 
     fun writePcm16WavHeader(out: OutputStream, info: WavInfo, pcmSize: Long) {
-        require(pcmSize in 0..0xFFFFFFFFL) { "PCM output is too large for a RIFF WAV" }
+        require(pcmSize in 0..(0xFFFFFFFFL - 36)) { "PCM output is too large for a RIFF WAV" }
 
         val byteRate = info.sampleRate * info.channels * (info.bitsPerSample / 8)
         val blockAlign = info.channels * (info.bitsPerSample / 8)

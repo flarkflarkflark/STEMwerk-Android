@@ -39,17 +39,17 @@ class OnnxMdxSeparator(
     )
 
     fun separate(
-        audioBytes: ByteArray,
+        audio: PcmAudio,
         model: ModelManager.ModelEntry,
         modelFile: File,
         selectedStemNames: List<String>,
         backend: InferenceBackend,
         output: OutputSink,
     ) {
-        val (wavInfo, pcm) = WavUtil.parsePcm16(audioBytes)
-        if (pcm.isEmpty()) throw IllegalArgumentException("The selected WAV contains no audio")
-
-        val totalSamples = pcm.size / (2 * wavInfo.channels)
+        require(audio.sampleRate == PcmResampler.MODEL_RATE)
+        require(audio.frames <= Int.MAX_VALUE) { "Audio is too long" }
+        val wavInfo = WavUtil.WavInfo(audio.sampleRate, audio.channels, 16, 0, 0)
+        val totalSamples = audio.frames.toInt()
         if (totalSamples <= 0) throw IllegalArgumentException("The selected WAV contains no samples")
 
         val trim = model.nFft / 2
@@ -59,8 +59,7 @@ class OnnxMdxSeparator(
 
         // The reference implementation deliberately adds one full generation
         // window when the source length is exactly divisible by generatedSize.
-        val pad = generatedSize - (totalSamples % generatedSize)
-        val segmentCount = (totalSamples + pad) / generatedSize
+        val segmentCount = ((totalSamples.toLong() + generatedSize - 1) / generatedSize).toInt()
 
         val selected = selectedStemNames.map { it.lowercase(Locale.US) }.toSet()
         val wantPrimary = selected.contains(model.primaryStem)
@@ -85,7 +84,7 @@ class OnnxMdxSeparator(
         try {
             primaryRaw.outputStream().buffered().use { primaryOut ->
                 secondaryRaw.outputStream().buffered().use { secondaryOut ->
-                    handle.session.use { session ->
+                    handle.session.use { session -> PcmReader(audio).use { pcm ->
                         val fft = FloatFFT_1D(model.nFft.toLong())
                         for (segment in 0 until segmentCount) {
                             check(!cancelled) { "Cancelled" }
@@ -130,13 +129,13 @@ class OnnxMdxSeparator(
                                 trim,
                                 samplesToWrite,
                                 decoded,
-                                model.compensation,
+                                1f,
                             )
 
                             val pct = (((segment + 1) * 100L) / segmentCount).toInt()
-                            onProgress(pct, "Separating segment $segment/$segmentCount")
+                            onProgress(pct, "Separating segment " + (segment + 1) + "/" + segmentCount)
                         }
-                    }
+                    } }
                 }
             }
 
@@ -159,21 +158,23 @@ class OnnxMdxSeparator(
         backend: InferenceBackend,
     ): SessionHandle {
         fun cpu(): SessionHandle {
-            val options = OrtSession.SessionOptions()
+            return OrtSession.SessionOptions().use { options ->
             options.setIntraOpNumThreads(max(1, Runtime.getRuntime().availableProcessors().coerceAtMost(4)))
-            return SessionHandle(
+            SessionHandle(
                 env.createSession(modelFile.absolutePath, options),
                 "CPU",
             )
+            }
         }
 
         fun nnapi(): SessionHandle {
-            val options = OrtSession.SessionOptions()
-            options.addNnapi()
-            return SessionHandle(
+            return OrtSession.SessionOptions().use { options ->
+            options.addNnapi(java.util.EnumSet.of(ai.onnxruntime.providers.NNAPIFlags.CPU_DISABLED))
+            SessionHandle(
                 env.createSession(modelFile.absolutePath, options),
-                "Android NNAPI hardware route",
+                "NNAPI requested (actual CPU/GPU/NPU assignment depends on device)",
             )
+            }
         }
 
         return when (backend) {
@@ -248,7 +249,7 @@ class OnnxMdxSeparator(
         fft: FloatFFT_1D,
     ): DecodedChunk {
         val expected = 4 * model.dimF * model.dimT
-        if (values.size < expected) {
+        if (values.size != expected) {
             throw IllegalStateException(
                 "Unexpected ONNX output size ${values.size}; expected at least $expected"
             )
@@ -256,6 +257,10 @@ class OnnxMdxSeparator(
 
         val primaryLeft = istft(values, 0, model, fft)
         val primaryRight = istft(values, 2, model, fft)
+        for (i in primaryLeft.indices) {
+            primaryLeft[i] *= model.compensation
+            primaryRight[i] *= model.compensation
+        }
         return DecodedChunk(primaryLeft, primaryRight)
     }
 
@@ -316,7 +321,7 @@ class OnnxMdxSeparator(
     }
 
     private fun fillChunk(
-        pcm: ByteArray,
+        pcm: PcmReader,
         channels: Int,
         totalSamples: Int,
         startSample: Int,
@@ -327,21 +332,10 @@ class OnnxMdxSeparator(
         for (i in inputLeft.indices) {
             val sourceSample = startSample + i - trim
             if (sourceSample in 0 until totalSamples) {
-                inputLeft[i] = readPcmSample(pcm, sourceSample, 0, channels)
-                inputRight[i] = readPcmSample(pcm, sourceSample, min(1, channels - 1), channels)
+                inputLeft[i] = pcm.sample(sourceSample.toLong(), 0)
+                inputRight[i] = pcm.sample(sourceSample.toLong(), min(1, channels - 1))
             }
         }
-    }
-
-    private fun readPcmSample(
-        pcm: ByteArray,
-        sample: Int,
-        channel: Int,
-        channels: Int,
-    ): Float {
-        val offset = (sample * channels + channel) * 2
-        val value = (pcm[offset].toInt() and 0xFF) or (pcm[offset + 1].toInt() shl 8)
-        return value.toShort().toInt() / 32768f
     }
 
     private fun reflectPad(input: FloatArray, pad: Int): FloatArray {

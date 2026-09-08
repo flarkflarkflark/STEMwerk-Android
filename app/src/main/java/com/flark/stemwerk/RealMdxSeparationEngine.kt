@@ -1,78 +1,80 @@
 package com.flark.stemwerk
 
 import android.content.Context
+import java.io.File
+import java.util.concurrent.CancellationException
 import kotlin.concurrent.thread
 
-/**
- * Production SeparationEngine for the Android MVP.
- *
- * The work runs off the UI thread. Model download is cached; audio and output
- * remain local to the device.
- */
-class RealMdxSeparationEngine(
-    private val context: Context,
-) : SeparationEngine {
-    @Volatile
-    private var cancelled = false
+/** One instance per job; the batch worker calls runBlocking sequentially. */
+class RealMdxSeparationEngine(private val context: Context) : SeparationEngine {
+    @Volatile private var cancelled = false
+    @Volatile private var activeSeparator: OnnxMdxSeparator? = null
 
-    @Volatile
-    private var activeSeparator: OnnxMdxSeparator? = null
+    private fun checkCancelled() {
+        if (cancelled) throw CancellationException("Cancelled")
+    }
 
-    override fun run(
-        request: SeparationRequest,
-        onLog: (String) -> Unit,
-        onProgress: (Int, String) -> Unit,
-        onDone: (Boolean, String) -> Unit,
-    ) {
-        cancelled = false
-
+    override fun run(request: SeparationRequest, onLog: (String) -> Unit,
+        onProgress: (Int, String) -> Unit, onDone: (Boolean, String) -> Unit) {
         thread(name = "stemwerk-separation") {
             try {
-                onProgress(0, "Reading audio…")
-                val audioBytes = context.contentResolver.openInputStream(request.audioUri)
-                    ?.use { it.readBytes() }
-                    ?: throw IllegalArgumentException("Could not open selected audio")
+                runBlocking(request, onLog, onProgress)
+                onDone(true, "Finished — stems written")
+            } catch (e: Exception) {
+                onDone(false, e.message ?: "Extraction failed")
+            }
+        }
+    }
 
-                check(!cancelled) { "Cancelled" }
-                onLog("Loaded ${audioBytes.size / (1024 * 1024)} MiB of WAV data")
-
-                val manager = ModelManager(context)
-                onProgress(2, "Preparing model…")
-                val (model, modelFile) = manager.ensureModel(request.modelId) { downloadPct ->
-                    onProgress(2 + (downloadPct * 18 / 100), "Downloading model… $downloadPct%")
+    fun runBlocking(request: SeparationRequest, onLog: (String) -> Unit,
+        onProgress: (Int, String) -> Unit) {
+        val work = File(context.cacheDir, "audio-" + java.util.UUID.randomUUID())
+        check(work.mkdirs()) { "Cannot create audio workspace" }
+        try {
+            checkCancelled()
+            val models = ModelManager.selectedModels(request.modelId, request.selectedStemNames)
+            onProgress(0, "Opening audio…")
+            val decoded = AudioDecoder(context).decode(request.audioUri, work, ::checkCancelled, onLog) {
+                onProgress(it * 10 / 100, "Decoding audio…")
+            }
+            val audio = if (decoded.sampleRate == PcmResampler.MODEL_RATE) decoded else {
+                onLog("Resampling " + decoded.sampleRate + " → 44100 Hz")
+                PcmResampler.convert(decoded, File(work, "model.pcm"),
+                    checkCancelled = ::checkCancelled,
+                    progress = { onProgress(10 + it * 10 / 100, "Converting to 44.1 kHz…") })
+            }
+            if (audio.file != decoded.file) decoded.file.delete()
+            val manager = ModelManager(context)
+            models.forEachIndexed { index, model ->
+                checkCancelled()
+                fun progress(pct: Int, message: String) {
+                    onProgress(20 + (index * 80 + pct * 80 / 100) / models.size,
+                        model.primaryStem + ": " + message)
                 }
-                onLog("Model cache path: ${modelFile.absolutePath}")
-
-                check(!cancelled) { "Cancelled" }
-                val separator = OnnxMdxSeparator(
-                    context = context,
-                    onLog = onLog,
-                    onProgress = { pct, msg ->
-                        onProgress(20 + (pct * 75 / 100), msg)
-                    },
-                )
+                onLog("Model: " + model.file)
+                val file = manager.ensureModel(model, ::checkCancelled) {
+                    progress(it / 5, "Checking/downloading model " + it + "%")
+                }
+                val separator = OnnxMdxSeparator(context, onLog) { pct, msg ->
+                    progress(20 + pct * 80 / 100, msg)
+                }
                 activeSeparator = separator
                 separator.cancelled = cancelled
-
-                separator.separate(
-                    audioBytes = audioBytes,
-                    model = model,
-                    modelFile = modelFile,
-                    selectedStemNames = request.selectedStemNames,
-                    backend = request.backend,
-                    output = request.output,
-                )
-
-                check(!cancelled) { "Cancelled" }
-                onProgress(100, "Finished")
-                onDone(true, "Finished — stems written")
-            } catch (error: Throwable) {
-                val message = error.message ?: error::class.java.simpleName
-                onLog("Extraction failed: $message")
-                onDone(false, if (message == "Cancelled") "Cancelled" else "Failed: $message")
-            } finally {
-                activeSeparator = null
+                try {
+                    separator.separate(audio, model, file, request.selectedStemNames, request.backend, request.output)
+                } catch (e: ai.onnxruntime.OrtException) {
+                    checkCancelled()
+                    if (request.backend != InferenceBackend.AUTO) throw e
+                    onLog("NNAPI inference failed; retrying this model on CPU: " + e.message)
+                    separator.separate(audio, model, file, request.selectedStemNames, InferenceBackend.CPU, request.output)
+                } finally {
+                    activeSeparator = null
+                }
             }
+            checkCancelled()
+            onProgress(100, "Finished")
+        } finally {
+            work.deleteRecursively()
         }
     }
 

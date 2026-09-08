@@ -1,66 +1,48 @@
-# flarkaudio STEMWERK-Android
+# STEMwerk Android
 
-Android frontend for STEMwerk, targeting ARM64 devices such as the Asus ZenFone 10.
+Native ARM64 Android frontend. Branch: `android/v0.4.0-mobile-foundation`.
+Version 0.4.1 / build 17 adds local audio decoding, batch input, four stems and a device acceleration test.
 
-## Current mobile slice
+## Use
 
-The branch `android/v0.4.0-mobile-foundation` now contains a working local 2-stem extraction path:
+- Select one or more audio files. WAV PCM16 has a direct decoder; MP3, FLAC, AAC/M4A and Ogg use Android's media codecs. Exact additional format support depends on the device.
+- Mono/stereo input at 8–192 kHz is converted to 44.1 kHz using a windowed-sinc resampler with a low-pass filter for downsampling. Output WAVs are stereo PCM16 at 44.1 kHz.
+- Choose **4 stems** (vocals, drums, bass, other) or **2 stems** (vocals, instrumental). Choose any subset of available stems.
+- Each selected file runs sequentially and gets its own numbered folder. Failed files do not stop the remaining queue. Share exports a ZIP of successful jobs, including when a document-tree output folder was chosen.
+- Keep the processing screen open. Rotation is handled without restarting the queue. Leaving the activity cancels work; resumable background execution is still a follow-up.
 
-- real UVR MDX vocals ONNX model;
-- PCM16LE stereo/mono WAV at 44.1 kHz;
-- ONNX Runtime on Android;
-- selectable ARM64 CPU or Android NNAPI hardware route;
-- Auto route: try NNAPI and fall back to CPU if the device/model rejects it;
-- cached model download and local WAV output;
-- no cloud upload and no dummy stems.
+## Models and offline use
 
-The first run downloads the model to the app's private model cache. The model is roughly a large desktop-sized download, so the first extraction takes longer than later runs.
+Four stems use four separate KUIELab A MDX models, approximately 119 MB total.
+Two stems use UVR MDX Voc_FT, approximately 67 MB.
+Only models needed for the selected stems are downloaded. Models remain in app storage and are checked against pinned SHA-256 hashes before use. Normal APK updates retain them; uninstalling or clearing app data removes them.
 
-The current model writes:
+Source weights: [UVR model repository](https://github.com/TRvlvr/model_repo/releases/tag/all_public_uvr_models).
+Model configuration: [upstream MDX metadata](https://github.com/TRvlvr/application_data/blob/main/mdx_model_data/model_data_new.json).
+The `Verify mobile models` workflow matched model hashes to upstream metadata and executed every model on ONNX Runtime 1.20 CPU.
+The previous Voc_FT configuration was incorrect; build 17 corrects it to [1,4,3072,256], FFT 7680 and compensation 1.021.
 
-- `vocals.wav`;
-- `other.wav` (instrumental/residual).
+Four-stem outputs are independent model estimates. They are not forced to sum exactly to the mixture. DrumSep (splitting drums further) remains later scope.
+Audio stays local; no inference server is used. Temporary decoded audio is held on disk and removed per job.
 
-Drums and bass remain deliberately out of scope for this slice, as agreed. Four-stem coverage will use additional portable models after the two-stem path has been verified on the ZenFone 10.
+## Test device acceleration
 
-## Product boundary
+Tap **Test toestelversnelling**. The selected model or four-model pack is tested with a deterministic spectrum, one warm-up and two timed runs on each of CPU and NNAPI.
 
-The Android app is a separate native frontend. It does not run REAPER and does not embed the desktop PySide6 UI.
+- Logs contain actual execution-provider events from ONNX Runtime profiling.
+- NNAPI disables the Android reference CPU device. Unsupported graph operations can still run on ONNX Runtime CPU.
+- A successful session without NNAPI execution events is reported as unconfirmed acceleration.
+- Outputs are checked for finite values and relative RMS difference against CPU (2% diagnostic threshold).
+- Reported speed excludes model loading, decoding, STFT and downloads. It does not predict whole-song speed.
+- GPU versus NPU cannot be identified by the provider name alone.
+- Share the text report to inspect hardware results. No audio or sensitive account information is included.
 
-The GUI follows the STEMwerk REAPER Lua GUI as its visual source:
+CPU remains available. Auto retries CPU if NNAPI session creation or inference fails.
 
-- Lua classic dark palette and semantic colors;
-- the compact STEMwerk installer artwork;
-- native Android controls and touch-sized spacing;
-- matching dark surfaces and stem colors.
+## Verification
 
-The mapping is documented in [docs/reaper-ui-parity.md](docs/reaper-ui-parity.md).
+CI runs resampling unit tests, then Android API 34 x86_64 instrumented tests for the real codecs and the actual Kotlin inference path with all five pinned models. Generated audio and model fixtures are included only in the test APK; the delivered ARM64 app contains no model weights.
 
-## Runtime details
+A green build/emulator run does not prove GPU/NPU support on a physical phone. Use the in-app probe on that phone.
 
-The extraction path is implemented behind `SeparationEngine`:
-
-1. `RealMdxSeparationEngine` reads the selected WAV locally and manages the model cache.
-2. `OnnxMdxSeparator` performs the MDX STFT, ONNX inference, inverse STFT and residual reconstruction.
-3. `OutputSink` writes the selected WAV stems to the app folder or Android document-tree folder.
-
-The NNAPI route means Android selects an available device accelerator through the Android neural-network API. It is not a promise that every phone exposes a GPU delegate for this model; Auto safely falls back to the CPU route. This is the Android equivalent of choosing a hardware path, not Apple's MPS.
-
-## Input requirements
-
-The first real model slice accepts:
-
-- RIFF/WAVE PCM;
-- 16-bit little-endian samples;
-- mono or stereo;
-- 44.1 kHz.
-
-Other formats and sample rates need a decoder/resampler slice before they can be sent to the model. Desktop formats remain supported by the desktop STEMwerk implementations.
-
-## Next slices
-
-1. Test real outputs on the ZenFone 10 and compare against the desktop reference.
-2. Improve input decoding/resampling and foreground-service behavior for long jobs.
-3. Add portable four-stem coverage.
-4. Add optional Vulkan/NPU-specific acceleration if the device/runtime combination benefits from it.
-5. Add broader model coverage later, including DrumSep.
+Artwork and colors continue to follow the REAPER Lua GUI and compact installer logo; see [UI mapping](docs/reaper-ui-parity.md).

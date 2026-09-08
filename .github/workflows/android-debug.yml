@@ -21,7 +21,7 @@ jobs:
   build:
     name: Build debug APK
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 35
 
     steps:
       - name: Check out source
@@ -48,12 +48,46 @@ jobs:
           cache-provider: basic
 
       - name: Assemble debug APK
-        run: gradle --no-daemon assembleDebug
+        run: |
+          gradle --no-daemon testDebugUnitTest assembleDebug
+          mkdir -p build/delivery
+          cp app/build/outputs/apk/debug/app-debug.apk build/delivery/stemwerk-0.4.1.apk
+
+      - name: Prepare audio and model test fixtures
+        run: python3 tools/prepare_audio_tests.py
+
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      - name: Android codec and real extraction tests
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 34
+          arch: x86_64
+          target: google_apis
+          ram-size: 3072M
+          heap-size: 512M
+          disable-animations: true
+          script: gradle --no-daemon -PtestEmulator connectedDebugAndroidTest
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: audio-test-results
+          path: |
+            app/build/reports/tests
+            app/build/reports/androidTests
+            app/build/outputs/androidTest-results
+          if-no-files-found: warn
 
       - name: Upload debug APK
         uses: actions/upload-artifact@v4
         with:
           name: stemwerk-android-debug
-          path: app/build/outputs/apk/debug/app-debug.apk
+          path: build/delivery/stemwerk-0.4.1.apk
           if-no-files-found: error
           retention-days: 14

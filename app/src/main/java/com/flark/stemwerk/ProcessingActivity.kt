@@ -4,144 +4,171 @@ import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
 import android.view.WindowManager
-import android.widget.Button
-import android.widget.ProgressBar
-import android.widget.TextView
+import android.widget.*
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.FileProvider
+import androidx.documentfile.provider.DocumentFile
 import java.io.File
+import java.util.concurrent.CancellationException
 import java.util.zip.ZipEntry
 import java.util.zip.ZipOutputStream
+import kotlin.concurrent.thread
 
 class ProcessingActivity : AppCompatActivity() {
-
-    private lateinit var progressBar: ProgressBar
-    private lateinit var progressText: TextView
-    private lateinit var logText: TextView
-    private lateinit var shareButton: Button
-    private lateinit var closeButton: Button
-
+    @Volatile private var cancelled = false
+    @Volatile private var activeEngine: RealMdxSeparationEngine? = null
     private var zipFile: File? = null
-    private var separationEngine: SeparationEngine? = null
+    private var running = true
+    private lateinit var closeButton: Button
+    private lateinit var shareButton: Button
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         setContentView(R.layout.activity_processing)
-
-        progressBar = findViewById(R.id.progressBar)
-        progressText = findViewById(R.id.progressText)
-        logText = findViewById(R.id.logText)
-        shareButton = findViewById(R.id.shareButton)
         closeButton = findViewById(R.id.closeButton)
-
+        shareButton = findViewById(R.id.shareButton)
         shareButton.isEnabled = false
-        closeButton.isEnabled = false
-
-        val audioUri = Uri.parse(intent.getStringExtra("audioUri") ?: "")
-        val modelId = intent.getStringExtra("modelId") ?: ""
-        val stems = intent.getIntExtra("stems", 2)
-        val selectedStems = intent.getStringArrayExtra("selectedStems")?.toList()
-            ?: listOf("vocals", "other")
+        closeButton.isEnabled = true
+        closeButton.text = "Cancel"
+        closeButton.setOnClickListener {
+            if (running) {
+                cancelled = true
+                activeEngine?.cancel()
+                closeButton.isEnabled = false
+                closeButton.text = "Cancelling…"
+            } else finish()
+        }
+        shareButton.setOnClickListener {
+            zipFile?.let { file ->
+                val uri = FileProvider.getUriForFile(this, packageName + ".fileprovider", file)
+                startActivity(Intent.createChooser(Intent(Intent.ACTION_SEND).apply {
+                    type = "application/zip"
+                    putExtra(Intent.EXTRA_STREAM, uri)
+                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                }, "Share stems"))
+            }
+        }
+        val uris = (intent.getStringArrayExtra("audioUris")?.toList()
+            ?: listOfNotNull(intent.getStringExtra("audioUri"))).distinct().map(Uri::parse)
+        val modelId = intent.getStringExtra("modelId") ?: ModelManager.FOUR_STEMS
+        val selected = intent.getStringArrayExtra("selectedStems")?.toList() ?: ModelManager.STEMS
         val backend = InferenceBackend.fromId(intent.getStringExtra("backend"))
-        val outputFolderUriStr = intent.getStringExtra("outputFolderUri")
-
-        val outDir = File(getExternalFilesDir(null), "outputs/run_${System.currentTimeMillis()}")
-        outDir.mkdirs()
-
-        val outputSink: OutputSink = if (!outputFolderUriStr.isNullOrBlank()) {
-            SafOutputSink(this, Uri.parse(outputFolderUriStr))
-        } else {
-            FileOutputSink(outDir)
-        }
-
-        fun log(msg: String) {
-            runOnUiThread {
-                logText.append(msg + "\n")
-            }
-        }
-
-        fun progress(pct: Int, msg: String) {
-            runOnUiThread {
-                progressBar.progress = pct.coerceIn(0, 100)
-                progressText.text = msg
-            }
-        }
-
-        fun done(ok: Boolean, msg: String) {
-            runOnUiThread {
-                progressText.text = msg
-                closeButton.isEnabled = true
-                if (ok) {
-                    zipFile = runCatching { zipOutputDir(outDir) }.getOrNull()
-                    shareButton.isEnabled = (zipFile != null)
-                } else {
-                    shareButton.isEnabled = false
+        val folder = intent.getStringExtra("outputFolderUri")?.let(Uri::parse)
+        thread(name = "stemwerk-batch") {
+            val batch = File(getExternalFilesDir(null), "outputs/run_" + System.currentTimeMillis())
+            val successes = mutableListOf<File>()
+            var failed = 0
+            try {
+                check(batch.mkdirs()) { "Cannot create output directory" }
+                require(uris.isNotEmpty()) { "Select audio first" }
+                uris.forEachIndexed { index, uri ->
+                    if (cancelled) return@forEachIndexed
+                    val name = AudioNames.display(applicationContext, uri)
+                    val jobDir = File(batch, AudioNames.folder(index, name))
+                    check(jobDir.mkdirs())
+                    log("File " + (index + 1) + "/" + uris.size + ": " + name)
+                    val engine = RealMdxSeparationEngine(applicationContext)
+                    activeEngine = engine
+                    if (cancelled) engine.cancel()
+                    try {
+                        engine.runBlocking(SeparationRequest(uri, modelId,
+                            if (modelId == ModelManager.FOUR_STEMS) 4 else 2,
+                            selected, FileOutputSink(jobDir), backend), ::log) { pct, message ->
+                            progress((index * 100 + pct) / uris.size,
+                                (index + 1).toString() + "/" + uris.size + " — " + name + "\n" + message)
+                        }
+                        successes += jobDir
+                        log("Finished: " + name)
+                        if (folder != null) {
+                            try {
+                                export(jobDir, folder, batch.name)
+                                log("Saved to selected folder: " + jobDir.name)
+                            } catch (e: Exception) {
+                                log("Folder export failed; stems remain available via Share: " + e.message)
+                            }
+                        }
+                    } catch (e: Exception) {
+                        jobDir.deleteRecursively()
+                        if (!cancelled && e !is CancellationException) {
+                            failed++
+                            log("FAILED: " + name + " — " + (e.message ?: e.javaClass.simpleName))
+                        }
+                    } finally {
+                        activeEngine = null
+                    }
+                }
+                if (successes.isNotEmpty()) {
+                    progress(100, "Preparing share ZIP…")
+                    zipFile = zip(successes)
+                }
+                val result = (if (cancelled) "Cancelled. " else "") +
+                    successes.size + "/" + uris.size + " completed; " + failed + " failed"
+                progress(if (cancelled) 0 else 100, result)
+                log("Output: " + batch.absolutePath)
+            } catch (e: Exception) {
+                log("Batch error: " + e.message)
+                progress(0, "Failed: " + e.message)
+            } finally {
+                runOnUiThread {
+                    if (!isDestroyed) {
+                        running = false
+                        closeButton.text = "Close"
+                        closeButton.isEnabled = true
+                        shareButton.isEnabled = zipFile != null
+                        findViewById<TextView>(R.id.procTitle).text = "Processing complete"
+                        window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+                    }
                 }
             }
         }
+    }
 
-        progress(1, "Starting real extraction…")
-        log("Backend: $backend")
+    private fun log(message: String) = runOnUiThread {
+        if (!isDestroyed) findViewById<TextView>(R.id.logText).append(message + "\n")
+    }
 
-        val engine: SeparationEngine = RealMdxSeparationEngine(applicationContext)
-        separationEngine = engine
-        engine.run(
-            request = SeparationRequest(
-                audioUri = audioUri,
-                modelId = modelId,
-                stemCount = stems,
-                selectedStemNames = selectedStems,
-                output = outputSink,
-                backend = backend,
-            ),
-            onLog = ::log,
-            onProgress = ::progress,
-            onDone = ::done,
-        )
-
-        shareButton.setOnClickListener {
-            val z = zipFile ?: return@setOnClickListener
-            shareZip(z)
+    private fun progress(pct: Int, message: String) = runOnUiThread {
+        if (!isDestroyed) {
+            findViewById<ProgressBar>(R.id.progressBar).progress = pct.coerceIn(0, 100)
+            findViewById<TextView>(R.id.progressText).text = message
         }
+    }
 
-        closeButton.setOnClickListener {
-            finish()
+    private fun export(source: File, tree: Uri, runName: String) {
+        val root = DocumentFile.fromTreeUri(this, tree) ?: error("Invalid folder")
+        val run = root.findFile(runName) ?: root.createDirectory(runName) ?: error("Cannot create run folder")
+        val job = run.createDirectory(source.name) ?: error("Cannot create file folder")
+        source.listFiles()?.filter { it.isFile }?.forEach { file ->
+            val document = job.createFile("audio/wav", file.name) ?: error("Cannot create stem")
+            contentResolver.openOutputStream(document.uri, "w")?.use { out ->
+                file.inputStream().use { it.copyTo(out) }
+            } ?: error("Cannot write stem")
+        }
+    }
+
+    private fun zip(directories: List<File>): File {
+        val target = File(cacheDir, "stemwerk_output_" + System.currentTimeMillis() + ".zip")
+        try {
+            ZipOutputStream(target.outputStream().buffered()).use { out ->
+                directories.forEach { dir ->
+                    dir.listFiles()?.filter { it.isFile }?.forEach { file ->
+                        out.putNextEntry(ZipEntry(dir.name + "/" + file.name))
+                        file.inputStream().use { it.copyTo(out) }
+                        out.closeEntry()
+                    }
+                }
+            }
+            return target
+        } catch (e: Exception) {
+            target.delete()
+            throw e
         }
     }
 
     override fun onDestroy() {
-        separationEngine?.cancel()
-        separationEngine = null
+        cancelled = true
+        activeEngine?.cancel()
         super.onDestroy()
-    }
-
-    private fun zipOutputDir(outDir: File): File {
-        val zip = File(cacheDir, "stemwerk_output_${System.currentTimeMillis()}.zip")
-        ZipOutputStream(zip.outputStream().buffered()).use { zos ->
-            outDir.walkTopDown().forEach { f ->
-                if (f.isFile) {
-                    val rel = f.relativeTo(outDir).path
-                    zos.putNextEntry(ZipEntry(rel))
-                    f.inputStream().use { it.copyTo(zos) }
-                    zos.closeEntry()
-                }
-            }
-        }
-        return zip
-    }
-
-    private fun shareZip(zip: File) {
-        val uri = FileProvider.getUriForFile(
-            this,
-            "${applicationContext.packageName}.fileprovider",
-            zip
-        )
-        val intent = Intent(Intent.ACTION_SEND).apply {
-            type = "application/zip"
-            putExtra(Intent.EXTRA_STREAM, uri)
-            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-        }
-        startActivity(Intent.createChooser(intent, "Share output"))
     }
 }

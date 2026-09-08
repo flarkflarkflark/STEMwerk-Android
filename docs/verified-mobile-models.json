@@ -1,0 +1,102 @@
+[
+  {
+    "file": "UVR-MDX-NET-Voc_FT.onnx",
+    "input": "input",
+    "params": {
+      "compensate": 1.021,
+      "mdx_dim_f_set": 3072,
+      "mdx_dim_t_set": 8,
+      "mdx_n_fft_scale_set": 7680,
+      "primary_stem": "Vocals"
+    },
+    "result": "CPU inference PASS",
+    "sha256": "534b2070fcc7df514b13ef660dc8cbb328679c2374d04354a5c42bb14ecce111",
+    "shape": [
+      "batch_size",
+      4,
+      3072,
+      256
+    ],
+    "size": 66762490
+  },
+  {
+    "file": "kuielab_a_vocals.onnx",
+    "input": "input",
+    "params": {
+      "compensate": 1.035,
+      "mdx_dim_f_set": 2048,
+      "mdx_dim_t_set": 9,
+      "mdx_n_fft_scale_set": 6144,
+      "primary_stem": "Vocals"
+    },
+    "result": "CPU inference PASS",
+    "sha256": "daba83c2ee1afee9139766ad64c9b6808d6b6f092fff04bed3338be50baac721",
+    "shape": [
+      "batch_size",
+      4,
+      2048,
+      512
+    ],
+    "size": 29703204
+  },
+  {
+    "file": "kuielab_a_drums.onnx",
+    "input": "input",
+    "params": {
+      "compensate": 1.035,
+      "mdx_dim_f_set": 2048,
+      "mdx_dim_t_set": 9,
+      "mdx_n_fft_scale_set": 4096,
+      "primary_stem": "Drums"
+    },
+    "result": "CPU inference PASS",
+    "sha256": "40f586b7091934dd6f5563f0cba8f14bad57ce88440da1098bf388ea716c2901",
+    "shape": [
+      "batch_size",
+      4,
+      2048,
+      512
+    ],
+    "size": 29703204
+  },
+  {
+    "file": "kuielab_a_bass.onnx",
+    "input": "input",
+    "params": {
+      "compensate": 1.035,
+      "mdx_dim_f_set": 2048,
+      "mdx_dim_t_set": 9,
+      "mdx_n_fft_scale_set": 16384,
+      "primary_stem": "Bass"
+    },
+    "result": "CPU inference PASS",
+    "sha256": "0c3e77b9963185b1ea6bb46a4b8924137d9370fc1ccdefec7b1b416ef550dcaa",
+    "shape": [
+      "batch_size",
+      4,
+      2048,
+      512
+    ],
+    "size": 29703204
+  },
+  {
+    "file": "kuielab_a_other.onnx",
+    "input": "input",
+    "params": {
+      "compensate": 1.035,
+      "mdx_dim_f_set": 2048,
+      "mdx_dim_t_set": 9,
+      "mdx_n_fft_scale_set": 8192,
+      "primary_stem": "Other"
+    },
+    "result": "CPU inference PASS",
+    "sha256": "7b67a1dcb5f232153528c59960b4c7bf8dc736b8114de360af0e719633f53358",
+    "shape": [
+      "batch_size",
+      4,
+      2048,
+      512
+    ],
+    "size": 29703204
+  }
+]
