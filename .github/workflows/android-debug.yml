@@ -73,7 +73,7 @@ jobs:
           disable-animations: true
           script: |
             gradle --no-daemon -PtestEmulator connectedDebugAndroidTest
-            adb pull /sdcard/Android/data/com.flark.stemwerk/files/player-preview.png build/delivery/player-preview.png
+            adb pull /data/local/tmp/stemwerk-player-preview.png build/delivery/player-preview.png || true
 
       - name: Upload test results
         if: always()

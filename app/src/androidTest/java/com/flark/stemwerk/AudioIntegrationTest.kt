@@ -59,11 +59,17 @@ class AudioIntegrationTest {
                     activity.findViewById<WaveformView>(R.id.playerWaveform).peaks.isNotEmpty() &&
                     activity.findViewById<android.widget.SeekBar>(R.id.playerSeek).progress in 400..650
             }
+            instrumentation.waitForIdleSync()
             instrumentation.uiAutomation.takeScreenshot()?.let { screenshot ->
                 File(ctx.getExternalFilesDir(null), "player-preview.png").outputStream().use {
                     screenshot.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, it)
                 }
                 screenshot.recycle()
+                // Gradle uninstalls the test app after the suite, deleting its external files.
+                // Copy the preview as the test shell while those files still exist.
+                val copy = instrumentation.uiAutomation.executeShellCommand(
+                    "cp /sdcard/Android/data/com.flark.stemwerk/files/player-preview.png /data/local/tmp/stemwerk-player-preview.png")
+                android.os.ParcelFileDescriptor.AutoCloseInputStream(copy).use { it.readBytes() }
             }
         } finally {
             instrumentation.runOnMainSync { activity.finish() }
