@@ -16,11 +16,13 @@ import java.util.zip.ZipOutputStream
 class ProcessingActivity : AppCompatActivity() {
 
     private lateinit var progressBar: ProgressBar
-    private lateinit var statusText: TextView
+    private lateinit var progressText: TextView
     private lateinit var logText: TextView
     private lateinit var shareButton: Button
+    private lateinit var closeButton: Button
 
     private var zipFile: File? = null
+    private var separationEngine: SeparationEngine? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -28,16 +30,19 @@ class ProcessingActivity : AppCompatActivity() {
         setContentView(R.layout.activity_processing)
 
         progressBar = findViewById(R.id.progressBar)
-        statusText = findViewById(R.id.statusText)
+        progressText = findViewById(R.id.progressText)
         logText = findViewById(R.id.logText)
         shareButton = findViewById(R.id.shareButton)
+        closeButton = findViewById(R.id.closeButton)
 
         shareButton.isEnabled = false
+        closeButton.isEnabled = false
 
         val audioUri = Uri.parse(intent.getStringExtra("audioUri") ?: "")
         val modelId = intent.getStringExtra("modelId") ?: ""
         val stems = intent.getIntExtra("stems", 4)
-        val selectedStems = intent.getStringArrayExtra("selectedStems")?.toList() ?: listOf("drums", "bass", "other", "vocals")
+        val selectedStems = intent.getStringArrayExtra("selectedStems")?.toList()
+            ?: listOf("drums", "bass", "other", "vocals")
         val outputFolderUriStr = intent.getStringExtra("outputFolderUri")
 
         val outDir = File(getExternalFilesDir(null), "outputs/run_${System.currentTimeMillis()}")
@@ -49,8 +54,6 @@ class ProcessingActivity : AppCompatActivity() {
             FileOutputSink(outDir)
         }
 
-        val engine = SeparationEngine(this)
-
         fun log(msg: String) {
             runOnUiThread {
                 logText.append(msg + "\n")
@@ -59,31 +62,39 @@ class ProcessingActivity : AppCompatActivity() {
 
         fun progress(pct: Int, msg: String) {
             runOnUiThread {
-                progressBar.progress = pct
-                statusText.text = msg
+                progressBar.progress = pct.coerceIn(0, 100)
+                progressText.text = msg
             }
         }
 
         fun done(ok: Boolean, msg: String) {
             runOnUiThread {
-                statusText.text = msg
+                progressText.text = msg
+                closeButton.isEnabled = true
+
+                // Sharing is enabled only after a real backend has written output.
+                // The current foundation build deliberately writes nothing.
                 if (ok) {
-                    // Keep zip share as optional convenience (even if stems are written to SAF folder).
                     zipFile = runCatching { zipOutputDir(outDir) }.getOrNull()
                     shareButton.isEnabled = (zipFile != null)
+                } else {
+                    shareButton.isEnabled = false
                 }
             }
         }
 
         progress(1, "Starting…")
 
-        // NOTE: ModelId is not yet used in dummy engine; real Demucs will use it.
+        val engine: SeparationEngine = UnavailableSeparationEngine()
+        separationEngine = engine
         engine.run(
-            audioUri = audioUri,
-            stems = stems,
-            selectedStemNames = selectedStems,
-            modelPath = modelId,
-            output = outputSink,
+            request = SeparationRequest(
+                audioUri = audioUri,
+                modelId = modelId,
+                stemCount = stems,
+                selectedStemNames = selectedStems,
+                output = outputSink,
+            ),
             onLog = ::log,
             onProgress = ::progress,
             onDone = ::done,
@@ -94,9 +105,15 @@ class ProcessingActivity : AppCompatActivity() {
             shareZip(z)
         }
 
-        findViewById<Button>(R.id.closeButton).setOnClickListener {
+        closeButton.setOnClickListener {
             finish()
         }
+    }
+
+    override fun onDestroy() {
+        separationEngine?.cancel()
+        separationEngine = null
+        super.onDestroy()
     }
 
     private fun zipOutputDir(outDir: File): File {
