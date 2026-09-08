@@ -18,6 +18,9 @@ class ProcessingActivity : AppCompatActivity() {
     @Volatile private var cancelled = false
     @Volatile private var activeEngine: RealMdxSeparationEngine? = null
     private var zipFile: File? = null
+    private val previewUris = mutableListOf<String>()
+    private val previewLabels = mutableListOf<String>()
+    private val previewGroups = mutableListOf<String>()
     private var running = true
     private lateinit var closeButton: Button
     private lateinit var shareButton: Button
@@ -29,6 +32,15 @@ class ProcessingActivity : AppCompatActivity() {
         closeButton = findViewById(R.id.closeButton)
         shareButton = findViewById(R.id.shareButton)
         shareButton.isEnabled = false
+        val listen = findViewById<Button>(R.id.previewOutputButton)
+        listen.isEnabled = false
+        listen.setOnClickListener {
+            startActivity(Intent(this, PlayerActivity::class.java).apply {
+                putExtra("audioUris", previewUris.toTypedArray())
+                putExtra("labels", previewLabels.toTypedArray())
+                putExtra("groups", previewGroups.toTypedArray())
+            })
+        }
         closeButton.isEnabled = true
         closeButton.text = "Cancel"
         closeButton.setOnClickListener {
@@ -79,6 +91,14 @@ class ProcessingActivity : AppCompatActivity() {
                                 (index + 1).toString() + "/" + uris.size + " — " + name + "\n" + message)
                         }
                         successes += jobDir
+                        previewUris += uri.toString()
+                        previewLabels += name + " — Original"
+                        previewGroups += uri.toString()
+                        jobDir.listFiles()?.filter { it.extension == "wav" }?.sortedBy { it.name }?.forEach { stem ->
+                            previewUris += Uri.fromFile(stem).toString()
+                            previewLabels += name + " — " + stem.nameWithoutExtension
+                            previewGroups += uri.toString()
+                        }
                         log("Finished: " + name)
                         if (folder != null) {
                             try {
@@ -116,6 +136,7 @@ class ProcessingActivity : AppCompatActivity() {
                         closeButton.text = "Close"
                         closeButton.isEnabled = true
                         shareButton.isEnabled = zipFile != null
+                        listen.isEnabled = previewUris.isNotEmpty()
                         findViewById<TextView>(R.id.procTitle).text = "Processing complete"
                         window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
                     }

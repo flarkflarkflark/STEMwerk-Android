@@ -13,6 +13,63 @@ import kotlin.math.abs
 @RunWith(AndroidJUnit4::class)
 class AudioIntegrationTest {
     private val instrumentation get() = InstrumentationRegistry.getInstrumentation()
+    @Test fun testPlaybackWaveformSeekingAndTrackSwitch() {
+        val ctx = instrumentation.targetContext
+        val source = File(ctx.cacheDir, "player-tone.wav")
+        instrumentation.context.assets.open("tone24.wav").use { input ->
+            source.outputStream().use { input.copyTo(it) }
+        }
+        val activity = instrumentation.startActivitySync(android.content.Intent(ctx, PlayerActivity::class.java).apply {
+            addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+            val uri = Uri.fromFile(source).toString()
+            putExtra("audioUris", arrayOf(uri, uri))
+            putExtra("labels", arrayOf("Test audio — Original", "Test audio — vocals"))
+            putExtra("groups", arrayOf("same", "same"))
+        }) as PlayerActivity
+        try {
+            fun waitFor(condition: () -> Boolean) {
+                val deadline = android.os.SystemClock.elapsedRealtime() + 20000
+                while (android.os.SystemClock.elapsedRealtime() < deadline) {
+                    var ready = false
+                    instrumentation.runOnMainSync { ready = condition() }
+                    if (ready) return
+                    Thread.sleep(100)
+                }
+                fail("Player timed out")
+            }
+            waitFor {
+                activity.findViewById<android.widget.Button>(R.id.playerPlay).isEnabled &&
+                    activity.findViewById<WaveformView>(R.id.playerWaveform).peaks.isNotEmpty()
+            }
+            instrumentation.runOnMainSync {
+                assertTrue(activity.findViewById<WaveformView>(R.id.playerWaveform).peaks.any { it > 0.01f })
+                activity.findViewById<android.widget.Button>(R.id.playerPlay).performClick()
+            }
+            waitFor { activity.findViewById<android.widget.SeekBar>(R.id.playerSeek).progress > 150 }
+            instrumentation.runOnMainSync {
+                activity.findViewById<android.widget.Button>(R.id.playerPlay).performClick()
+                activity.findViewById<WaveformView>(R.id.playerWaveform).onSeek?.invoke(0.5f)
+            }
+            waitFor { activity.findViewById<android.widget.SeekBar>(R.id.playerSeek).progress in 400..650 }
+            instrumentation.runOnMainSync {
+                activity.findViewById<android.widget.Spinner>(R.id.playerTracks).setSelection(1)
+            }
+            waitFor {
+                activity.findViewById<android.widget.TextView>(R.id.playerStatus).text.toString().endsWith("vocals") &&
+                    activity.findViewById<WaveformView>(R.id.playerWaveform).peaks.isNotEmpty() &&
+                    activity.findViewById<android.widget.SeekBar>(R.id.playerSeek).progress in 400..650
+            }
+            instrumentation.uiAutomation.takeScreenshot()?.let { screenshot ->
+                File(ctx.getExternalFilesDir(null), "player-preview.png").outputStream().use {
+                    screenshot.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, it)
+                }
+                screenshot.recycle()
+            }
+        } finally {
+            instrumentation.runOnMainSync { activity.finish() }
+            source.delete()
+        }
+    }
     private fun cacheVocalModel(): File {
         val ctx = instrumentation.targetContext
         val model = ModelManager.MODELS.first()
@@ -134,7 +191,7 @@ class AudioIntegrationTest {
                 }
                 val outputDir = File(dir, model.id).also { it.mkdirs() }
                 val selected = if (model.secondaryStem.isEmpty()) listOf(model.primaryStem) else listOf("vocals", "other")
-                OnnxMdxSeparator(ctx, {}, {}).separate(audio, model, file, selected,
+                OnnxMdxSeparator(ctx, {}, { _, _ -> }).separate(audio, model, file, selected,
                     InferenceBackend.CPU, FileOutputSink(outputDir))
                 for (stem in selected) {
                     val output = File(outputDir, stem + ".wav")

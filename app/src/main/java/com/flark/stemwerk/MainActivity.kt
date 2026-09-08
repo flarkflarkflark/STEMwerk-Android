@@ -62,6 +62,12 @@ class MainActivity : AppCompatActivity() {
             pickAudio.launch(arrayOf("audio/*", "application/ogg", "application/x-flac"))
         }
 
+        findViewById<Button>(R.id.previewAudioButton).setOnClickListener {
+            startActivity(Intent(this, PlayerActivity::class.java).apply {
+                putExtra("audioUris", audioUris.map(Uri::toString).toTypedArray())
+                putExtra("labels", audioUris.map { AudioNames.display(this@MainActivity, it) + " — Original" }.toTypedArray())
+            })
+        }
         findViewById<Button>(R.id.pickModelButton).setOnClickListener {
             ModelPickerDialog.show(this) { chosenId ->
                 modelId = chosenId
@@ -127,6 +133,7 @@ class MainActivity : AppCompatActivity() {
         val ready = (audioUris.isNotEmpty() && selectedStemNames().isNotEmpty())
         status.text = "Ready (v${BuildConfig.VERSION_NAME})"
         findViewById<Button>(R.id.startButton).isEnabled = ready
+        findViewById<Button>(R.id.previewAudioButton).isEnabled = audioUris.isNotEmpty()
     }
 
     override fun onSaveInstanceState(outState: Bundle) {

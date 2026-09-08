@@ -2,6 +2,7 @@
 
 Native ARM64 Android frontend. Branch: `android/v0.4.0-mobile-foundation`.
 Version 0.4.1 / build 17 adds local audio decoding, batch input, four stems and a device acceleration test.
+It also includes playback and real PCM waveforms for originals and completed stems.
 
 ## Use
 
@@ -10,6 +11,15 @@ Version 0.4.1 / build 17 adds local audio decoding, batch input, four stems and 
 - Choose **4 stems** (vocals, drums, bass, other) or **2 stems** (vocals, instrumental). Choose any subset of available stems.
 - Each selected file runs sequentially and gets its own numbered folder. Failed files do not stop the remaining queue. Share exports a ZIP of successful jobs, including when a document-tree output folder was chosen.
 - Keep the processing screen open. Rotation is handled without restarting the queue. Leaving the activity cancels work; resumable background execution is still a follow-up.
+
+## Listen before and after separation
+
+Use **Listen / waveform** after selecting input files, or **Listen / waveforms**
+after processing. Choose an original or stem from the track menu. Play/pause,
+the time slider and tapping the waveform control playback. Switching between
+the original and stems of the same file retains the playhead position.
+Waveform height uses a fixed full-scale amplitude so quiet stems are not
+artificially enlarged. Playback pauses when the player screen is left.
 
 ## Models and offline use
 

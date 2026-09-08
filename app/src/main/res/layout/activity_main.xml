@@ -58,6 +58,15 @@
             android:paddingBottom="8dp" />
 
         <Button
+            android:id="@+id/previewAudioButton"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:backgroundTint="@color/stemwerk_button"
+            android:textColor="@color/stemwerk_button_text"
+            android:text="Listen / waveform"
+            android:enabled="false" />
+
+        <Button
             android:id="@+id/pickModelButton"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"

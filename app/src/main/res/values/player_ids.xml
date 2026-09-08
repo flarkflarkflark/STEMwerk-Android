@@ -1,0 +1,8 @@
+<resources>
+    <item name="playerPlay" type="id" />
+    <item name="playerStatus" type="id" />
+    <item name="playerSeek" type="id" />
+    <item name="playerWaveform" type="id" />
+    <item name="playerTime" type="id" />
+    <item name="playerTracks" type="id" />
+</resources>
