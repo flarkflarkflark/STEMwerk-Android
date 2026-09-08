@@ -35,7 +35,7 @@
             android:id="@+id/statusText"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="Status: idle — mobile backend pending"
+            android:text="Status: idle — real 2-stem MDX ready"
             android:textColor="@color/stemwerk_text_secondary"
             android:textSize="14sp"
             android:paddingTop="12dp"
@@ -70,6 +70,22 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:text="No model selected"
+            android:textColor="@color/stemwerk_text_muted"
+            android:paddingBottom="8dp" />
+
+        <Button
+            android:id="@+id/pickBackendButton"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:backgroundTint="@color/stemwerk_button"
+            android:textColor="@color/stemwerk_button_text"
+            android:text="Choose inference route" />
+
+        <TextView
+            android:id="@+id/backendSelectedText"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Auto — NNAPI hardware, then CPU"
             android:textColor="@color/stemwerk_text_muted"
             android:paddingBottom="12dp" />
 
@@ -121,31 +137,20 @@
                 android:textColor="@color/stemwerk_vocals" />
 
             <CheckBox
-                android:id="@+id/stemDrums"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:buttonTint="@color/stemwerk_drums"
-                android:checked="true"
-                android:text="Drums"
-                android:textColor="@color/stemwerk_drums" />
-
-            <CheckBox
-                android:id="@+id/stemBass"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:buttonTint="@color/stemwerk_bass"
-                android:checked="true"
-                android:text="Bass"
-                android:textColor="@color/stemwerk_bass" />
-
-            <CheckBox
                 android:id="@+id/stemOther"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:buttonTint="@color/stemwerk_other"
                 android:checked="true"
-                android:text="Other"
+                android:text="Other / instrumental"
                 android:textColor="@color/stemwerk_other" />
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:paddingTop="8dp"
+                android:text="Drums en bass volgen in een latere model-slice."
+                android:textColor="@color/stemwerk_text_muted" />
         </LinearLayout>
 
         <Button
@@ -162,7 +167,7 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:paddingTop="12dp"
-            android:text="Foundation build: model download and UI plumbing are present, but no fake stems are written. Real 2-/4-stem mobile inference follows the model export/parity test."
+            android:text="Offline extractie via een echt ONNX MDX-model. Auto probeert Android NNAPI-hardware en valt terug op ARM64 CPU."
             android:textColor="@color/stemwerk_text_muted" />
 
     </LinearLayout>
