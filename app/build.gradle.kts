@@ -11,7 +11,7 @@ android {
         applicationId = "com.flark.stemwerk"
         minSdk = 26
         targetSdk = 34
-        versionCode = 15
+        versionCode = 16
         versionName = "0.4.0"
 
         // We start with ARM64 only (ZenFone 10). Add armeabi-v7a later if needed.
@@ -47,11 +47,14 @@ android {
 dependencies {
     implementation("com.caverock:androidsvg:1.4")
 
+    // Portable MDX inference on Android. CPU is always available; NNAPI is
+    // enabled at runtime for device hardware acceleration when supported.
+    implementation("com.microsoft.onnxruntime:onnxruntime-android:1.20.0")
+
+    // Arbitrary-length real/complex FFT used by the MDX STFT/ISTFT path.
+    implementation("com.github.wendykierp:JTransforms:3.1")
+
     implementation("androidx.core:core-ktx:1.13.1")
     implementation("androidx.appcompat:appcompat:1.7.0")
     implementation("com.google.android.material:material:1.12.0")
-
-    // The mobile inference runtime will be selected after the 2-/4-stem
-    // model-export/parity spike. Do not ship a legacy runtime speculatively.
-    // Candidate: ExecuTorch, ONNX Runtime Mobile, or LiteRT.
 }
