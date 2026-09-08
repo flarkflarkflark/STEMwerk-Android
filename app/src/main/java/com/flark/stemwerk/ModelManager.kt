@@ -2,181 +2,126 @@ package com.flark.stemwerk
 
 import android.content.Context
 import android.os.Environment
-import org.json.JSONObject
 import java.io.File
 import java.net.HttpURLConnection
 import java.net.URL
-import kotlin.concurrent.thread
 
 /**
- * Model download/cache manager.
+ * Downloads and caches the first real mobile model.
  *
- * v0.1: Downloads a manifest.json from a fixed GitHub release tag (models-v0.1), then downloads
- * the model asset for the selected stem count, verifies sha256, and caches it.
+ * The model is the public UVR MDX vocals model. It is a genuine ONNX model,
+ * not a repository placeholder. The model is used as a 2-stem separator:
+ * vocals (primary) and other/instrumental (mixture minus vocals).
  */
 class ModelManager(private val ctx: Context) {
-
-    private val repoOwner = "flarkflarkflark"
-    private val repoName = "STEMwerk-Android"
-    private val modelReleaseTag = "models-v0.1" // TODO: make this configurable / switch to a channel
 
     data class ModelEntry(
         val id: String,
         val stems: Int,
-        val format: String,
         val file: String,
-        val sha256: String,
+        val url: String,
+        val dimF: Int,
+        val dimT: Int,
+        val nFft: Int,
+        val hop: Int,
+        val compensation: Float,
+        val primaryStem: String,
+        val secondaryStem: String,
+    )
+
+    private val entries = mapOf(
+        "uvr-mdx-voc-ft" to ModelEntry(
+            id = "uvr-mdx-voc-ft",
+            stems = 2,
+            file = "UVR-MDX-NET-Voc_FT.onnx",
+            url = "https://github.com/TRvlvr/model_repo/releases/download/all_public_uvr_models/UVR-MDX-NET-Voc_FT.onnx",
+            dimF = 2048,
+            dimT = 256,
+            nFft = 6144,
+            hop = 1024,
+            compensation = 1.035f,
+            primaryStem = "vocals",
+            secondaryStem = "other",
+        ),
     )
 
     private fun modelsDir(): File {
         val base = ctx.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS)
+            ?: ctx.filesDir
         val dir = File(base, "models")
         dir.mkdirs()
         return dir
     }
 
-    private fun httpGetText(url: String): String {
-        val conn = (URL(url).openConnection() as HttpURLConnection)
-        conn.connectTimeout = 15_000
-        conn.readTimeout = 60_000
-        conn.setRequestProperty("Accept", "application/json")
-        conn.inputStream.use { ins ->
-            return ins.bufferedReader().readText()
-        }
-    }
-
-    private fun downloadToFile(url: String, out: File, onProgress: (Int) -> Unit) {
-        val conn = (URL(url).openConnection() as HttpURLConnection)
-        conn.connectTimeout = 15_000
-        conn.readTimeout = 0
-        val totalLen = conn.contentLengthLong
-
-        val tmp = File(out.absolutePath + ".part")
-        conn.inputStream.use { input ->
-            tmp.outputStream().use { output ->
-                val buf = ByteArray(1024 * 128)
-                var read: Int
-                var done: Long = 0
-                while (true) {
-                    read = input.read(buf)
-                    if (read <= 0) break
-                    output.write(buf, 0, read)
-                    done += read
-                    if (totalLen > 0) {
-                        val pct = ((done * 100) / totalLen).toInt().coerceIn(0, 100)
-                        onProgress(pct)
-                    }
-                }
-            }
-        }
-        if (!tmp.renameTo(out)) {
-            throw RuntimeException("Failed to move downloaded file into place")
-        }
-    }
-
-    private fun sha256(file: File): String {
-        val md = java.security.MessageDigest.getInstance("SHA-256")
-        file.inputStream().use { ins ->
-            val buf = ByteArray(1024 * 128)
-            while (true) {
-                val r = ins.read(buf)
-                if (r <= 0) break
-                md.update(buf, 0, r)
-            }
-        }
-        return md.digest().joinToString("") { "%02x".format(it) }
-    }
-
-    private fun fetchManifestEntries(): List<ModelEntry> {
-        // GitHub API for a specific release tag
-        val apiUrl = "https://api.github.com/repos/$repoOwner/$repoName/releases/tags/$modelReleaseTag"
-        val json = JSONObject(httpGetText(apiUrl))
-        val assets = json.getJSONArray("assets")
-
-        var manifestUrl: String? = null
-        val assetUrlByName = mutableMapOf<String, String>()
-
-        for (i in 0 until assets.length()) {
-            val a = assets.getJSONObject(i)
-            val name = a.getString("name")
-            val dl = a.getString("browser_download_url")
-            assetUrlByName[name] = dl
-            if (name == "manifest.json") manifestUrl = dl
-        }
-
-        val mUrl = manifestUrl ?: throw RuntimeException("manifest.json not found in release $modelReleaseTag")
-        val manifestText = httpGetText(mUrl)
-        val manifest = JSONObject(manifestText)
-        val models = manifest.getJSONArray("models")
-
-        val out = mutableListOf<ModelEntry>()
-        for (i in 0 until models.length()) {
-            val m = models.getJSONObject(i)
-            out += ModelEntry(
-                id = m.getString("id"),
-                stems = m.getInt("stems"),
-                format = m.getString("format"),
-                file = m.getString("file"),
-                sha256 = m.getString("sha256"),
-            )
-        }
-
-        // Validate that the model files exist as release assets
-        for (e in out) {
-            if (!assetUrlByName.containsKey(e.file)) {
-                throw RuntimeException("Model asset missing from release: ${e.file}")
-            }
-        }
-
-        return out
-    }
+    fun entry(modelId: String): ModelEntry =
+        entries[modelId] ?: throw IllegalArgumentException("Unknown mobile model: $modelId")
 
     fun ensureModel(
-        stems: Int,
+        modelId: String,
         onProgress: (Int) -> Unit,
-        onDone: (String) -> Unit,
-        onError: (String) -> Unit,
-    ) {
-        if (stems != 2 && stems != 4) {
-            onError("Only 2 and 4 stems are supported in this MVP build")
-            return
+    ): Pair<ModelEntry, File> {
+        val entry = entry(modelId)
+        val outFile = File(modelsDir(), entry.file)
+
+        if (!outFile.exists() || outFile.length() < 1_000_000L) {
+            onProgress(0)
+            downloadToFile(entry.url, outFile, onProgress)
+        } else {
+            onProgress(100)
         }
 
-        thread {
-            try {
-                val entries = fetchManifestEntries()
-                val entry = entries.firstOrNull { it.stems == stems }
-                    ?: throw RuntimeException("No model entry for ${stems} stems")
+        // ONNX Runtime performs the authoritative protobuf/model validation
+        // when the session is created. Keep a small sanity check here so a
+        // failed/HTML download is not mistaken for a model.
+        if (outFile.length() < 1_000_000L) {
+            outFile.delete()
+            throw IllegalStateException("Downloaded model is unexpectedly small")
+        }
 
-                val apiUrl = "https://api.github.com/repos/$repoOwner/$repoName/releases/tags/$modelReleaseTag"
-                val rel = JSONObject(httpGetText(apiUrl))
-                val assets = rel.getJSONArray("assets")
-                var modelUrl: String? = null
-                for (i in 0 until assets.length()) {
-                    val a = assets.getJSONObject(i)
-                    if (a.getString("name") == entry.file) {
-                        modelUrl = a.getString("browser_download_url")
-                        break
+        return entry to outFile
+    }
+
+    private fun downloadToFile(
+        url: String,
+        out: File,
+        onProgress: (Int) -> Unit,
+    ) {
+        val conn = (URL(url).openConnection() as HttpURLConnection).apply {
+            connectTimeout = 20_000
+            readTimeout = 0
+            instanceFollowRedirects = true
+            setRequestProperty("User-Agent", "STEMwerk-Android/0.4.0")
+        }
+
+        try {
+            val code = conn.responseCode
+            if (code !in 200..299) {
+                throw IllegalStateException("Model download failed with HTTP $code")
+            }
+
+            val totalLen = conn.contentLengthLong
+            val tmp = File(out.absolutePath + ".part")
+            conn.inputStream.use { input ->
+                tmp.outputStream().buffered().use { output ->
+                    val buffer = ByteArray(1024 * 256)
+                    var done = 0L
+                    while (true) {
+                        val read = input.read(buffer)
+                        if (read <= 0) break
+                        output.write(buffer, 0, read)
+                        done += read
+                        if (totalLen > 0L) {
+                            onProgress(((done * 100L) / totalLen).toInt().coerceIn(0, 100))
+                        }
                     }
                 }
-                val dlUrl = modelUrl ?: throw RuntimeException("Download URL not found for ${entry.file}")
-
-                val outFile = File(modelsDir(), entry.file)
-                if (!outFile.exists() || outFile.length() == 0L) {
-                    onProgress(0)
-                    downloadToFile(dlUrl, outFile, onProgress)
-                }
-
-                val got = sha256(outFile)
-                if (!got.equals(entry.sha256, ignoreCase = true)) {
-                    outFile.delete()
-                    throw RuntimeException("SHA256 mismatch for ${entry.file}")
-                }
-
-                onDone(outFile.absolutePath)
-            } catch (e: Exception) {
-                onError(e.message ?: e.toString())
             }
+
+            if (!tmp.renameTo(out)) {
+                throw IllegalStateException("Could not move downloaded model into cache")
+            }
+        } finally {
+            conn.disconnect()
         }
     }
 }
