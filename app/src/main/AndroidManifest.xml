@@ -11,6 +11,13 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.STEMwerk">
 
+        <!-- QNN GPU loads the OEM OpenCL driver. Apps targeting API 31+
+             must request public vendor libraries explicitly. Keep CPU-only
+             devices installable when the driver is not exposed by the OEM. -->
+        <uses-native-library
+            android:name="libOpenCL.so"
+            android:required="false" />
+
         <activity
             android:name=".MainActivity"
             android:exported="true">

@@ -1,7 +1,8 @@
 # STEMwerk Android
 
 Native ARM64 Android frontend. Branch: `android/v0.4.0-mobile-foundation`.
-Version 0.4.2 / build 18 adds a Qualcomm QNN GPU route for Snapdragon devices.
+Version 0.4.3 / build 19 requests the OEM OpenCL library for QNN GPU.
+Build 18 added a Qualcomm QNN GPU route for Snapdragon devices.
 Build 17 added local audio decoding, batch input, four stems and a device acceleration test.
 It also includes playback and real PCM waveforms for originals and completed stems.
 
@@ -49,6 +50,21 @@ back, which is useful for validation.
 The APK includes the QNN GPU and system libraries. HTP/DSP libraries are left
 out of this GPU build; they are only useful after separate NPU quantization and
 quality validation.
+
+The manifest requests `libOpenCL.so` with `uses-native-library` and
+`required=false`. Android requires this declaration for apps targeting API 31+
+to access public OEM native libraries. It does not make private vendor
+libraries accessible; the OEM must expose the driver to apps. Devices without
+an exposed OpenCL driver can still install and use CPU extraction.
+See [Android native-library declarations](https://developer.android.com/guide/topics/manifest/uses-native-library-element).
+
+The Zenfone 10 build 18 report showed successful CPU inference for all four
+models (about 4.6–5.1 seconds each), while every QNN GPU initialization failed
+to load `/vendor/lib64/libOpenCL.so`. Build 19 addresses the missing manifest
+declaration. This is a candidate fix, not confirmation of working GPU inference:
+repeat the four-model device probe and inspect QNN provider events and output
+comparison. If loading still fails, inspect the OEM public-library list and
+the exact linker error before choosing another backend.
 
 NNAPI remains available only as a legacy manual route. Android 15 deprecated
 NNAPI, and the Zenfone 10 device report from build 17 showed only ORT CPU
