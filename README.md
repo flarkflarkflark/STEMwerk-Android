@@ -1,7 +1,9 @@
 # STEMwerk Android
 
 Native ARM64 Android frontend. Branch: `android/v0.4.0-mobile-foundation`.
-Version 0.4.4 / build 20 adds a second device acceleration test that allows
+Version 0.4.5 / build 21 adds verbose QNN session logging and an optional
+static-batch diagnostic for the whole-graph QNN rejection found in build 20.
+Build 20 added a second device acceleration test that allows
 QNN GPU + CPU fallback, to check for partial-GPU speedups.
 Build 19 requests the OEM OpenCL library for QNN GPU.
 Build 18 added a Qualcomm QNN GPU route for Snapdragon devices.
@@ -78,6 +80,23 @@ the speed delta versus CPU-only. A session where every operation still ran on
 CPU is always reported as a CPU result, never as GPU acceleration, even though
 fallback was technically allowed.
 
+The Zenfone 10 build 20 report showed zero QNN provider events on all four
+models even with fallback allowed (417 of 417 ops on CPU each time) — QNN
+rejects these graphs outright rather than assigning a few unsupported ops to
+CPU. The KUIELab MDX models export with a dynamic `batch_size` input/output
+dimension, and upstream ONNX Runtime QNN EP documentation states dynamic
+shapes (their own example is a dynamic batch size) are not supported and must
+be fixed to a specific value; this lines up with an all-or-nothing rejection
+of the whole graph. Build 21 adds `setSessionLogLevel(ORT_LOGGING_LEVEL_VERBOSE)`
+on QNN sessions to surface ORT's own partitioning log line for this rejection,
+and an optional diagnostic: if a static-batch copy of `kuielab_a_vocals.onnx`
+(only the batch dimension changed from dynamic to `1`; verified bit-identical
+to the original on CPU before use) is present at
+`<app external files>/diag/static_batch_vocals.onnx` on the device, the probe
+runs it through the strict QNN GPU route and reports whether QNN executes it.
+This isolates whether dynamic batch size is the actual blocker, without
+changing the shipped models or the existing strict/mixed tests.
+
 NNAPI remains available only as a legacy manual route. Android 15 deprecated
 NNAPI, and the Zenfone 10 device report from build 17 showed only ORT CPU
 provider events for all four KUIELab models.
@@ -94,6 +113,7 @@ Tap **Test toestelversnelling**. The selected model or four-model pack is tested
 - Reported speed excludes model loading, decoding, STFT and downloads. It does not predict whole-song speed.
 - The probe requests QNN's GPU backend; an HTP/NPU route would require separately quantized and quality-validated models.
 - Share the text report to inspect hardware results. No audio or sensitive account information is included.
+- If a static-batch diagnostic model has been placed on the device (see Qualcomm QNN GPU above), a fourth section runs after the four stems, isolating whether a fixed batch dimension changes the QNN result.
 
 CPU remains available. Auto retries CPU if QNN session creation or inference fails.
 

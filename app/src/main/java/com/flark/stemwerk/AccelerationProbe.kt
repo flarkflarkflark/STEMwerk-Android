@@ -105,6 +105,25 @@ class AccelerationProbe(private val context: Context) {
                 log("QNN GPU + CPU (mixed) UNAVAILABLE OR FAILED for this model: " + (e.message ?: e.javaClass.simpleName))
             }
         }
+        val diagFile = File(context.getExternalFilesDir(null), "diag/static_batch_vocals.onnx")
+        if (diagFile.exists()) {
+            log("\nDiagnostic: kuielab_a_vocals.onnx with its dynamic batch dimension fixed to 1.")
+            log("Offline check: this variant produced bit-identical output to the original on CPU for the same input.")
+            log("Runs strict QNN GPU (CPU fallback disabled), same as the whole-graph test above.")
+            try {
+                val vocalsModel = ModelManager.MODELS.first { it.id == "kuielab-vocals" }
+                val random = java.util.Random(42)
+                val spectrum = FloatArray(4 * vocalsModel.dimF * vocalsModel.dimT) { (random.nextGaussian() * 0.1).toFloat() }
+                val result = measure(vocalsModel, diagFile, spectrum, true, checkCancelled)
+                val qnnEvents = result.providers.filterKeys { it.contains("qnn", true) }.values.sum()
+                log("Executed provider events (static-batch diagnostic): " + result.providers)
+                log(if (qnnEvents > 0) "STATIC BATCH DIAGNOSTIC: QNN executed the full graph — dynamic batch size was the blocker."
+                    else "STATIC BATCH DIAGNOSTIC: QNN executed nothing even with a static batch — dynamic batch size alone does not explain the rejection.")
+            } catch (e: Throwable) {
+                checkCancelled()
+                log("Static-batch diagnostic UNAVAILABLE OR FAILED: " + (e.message ?: e.javaClass.simpleName))
+            }
+        }
         log("\nTest complete. Share this report to inspect the results.")
     }
 
@@ -118,6 +137,7 @@ class AccelerationProbe(private val context: Context) {
                 options.setIntraOpNumThreads(Runtime.getRuntime().availableProcessors().coerceIn(1, 4))
                 options.enableProfiling(File(work, "profile").absolutePath)
                 if (qnnGpu) {
+                    options.setSessionLogLevel(OrtLoggingLevel.ORT_LOGGING_LEVEL_VERBOSE)
                     if (!allowCpuFallback) options.addConfigEntry("session.disable_cpu_ep_fallback", "1")
                     options.addQnn(mapOf(
                         "backend_type" to "gpu",
