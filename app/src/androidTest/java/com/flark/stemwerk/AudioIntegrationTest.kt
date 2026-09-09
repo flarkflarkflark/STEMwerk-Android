@@ -200,7 +200,7 @@ class AudioIntegrationTest {
                 }
                 val outputDir = File(dir, model.id).also { it.mkdirs() }
                 val selected = if (model.secondaryStem.isEmpty()) listOf(model.primaryStem) else listOf("vocals", "other")
-                OnnxMdxSeparator(ctx, {}, { _, _ -> }).separate(audio, model, file, selected,
+                OnnxMdxSeparator(ctx, {}, { _, _ -> }).separate(audio, model, file, null, selected,
                     InferenceBackend.CPU, FileOutputSink(outputDir))
                 for (stem in selected) {
                     val output = File(outputDir, stem + ".wav")

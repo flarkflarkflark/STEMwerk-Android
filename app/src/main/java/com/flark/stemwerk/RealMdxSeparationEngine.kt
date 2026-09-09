@@ -53,20 +53,24 @@ class RealMdxSeparationEngine(private val context: Context) : SeparationEngine {
                 }
                 onLog("Model: " + model.file)
                 val file = manager.ensureModel(model, ::checkCancelled) {
-                    progress(it / 5, "Checking/downloading model " + it + "%")
+                    progress(it / 10, "Checking/downloading model " + it + "%")
                 }
+                val needsQnn = request.backend == InferenceBackend.QNN_GPU || request.backend == InferenceBackend.AUTO
+                val qnnFile = if (needsQnn) manager.ensureQnnModel(model, ::checkCancelled) {
+                    progress(10 + it / 10, "Checking/downloading QNN model " + it + "%")
+                } else null
                 val separator = OnnxMdxSeparator(context, onLog) { pct, msg ->
                     progress(20 + pct * 80 / 100, msg)
                 }
                 activeSeparator = separator
                 separator.cancelled = cancelled
                 try {
-                    separator.separate(audio, model, file, request.selectedStemNames, request.backend, request.output)
+                    separator.separate(audio, model, file, qnnFile, request.selectedStemNames, request.backend, request.output)
                 } catch (e: ai.onnxruntime.OrtException) {
                     checkCancelled()
                     if (request.backend != InferenceBackend.AUTO) throw e
                     onLog("QNN GPU inference failed; retrying this model on CPU: " + e.message)
-                    separator.separate(audio, model, file, request.selectedStemNames, InferenceBackend.CPU, request.output)
+                    separator.separate(audio, model, file, null, request.selectedStemNames, InferenceBackend.CPU, request.output)
                 } finally {
                     activeSeparator = null
                 }

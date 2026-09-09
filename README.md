@@ -1,10 +1,17 @@
 # STEMwerk Android
 
 Native ARM64 Android frontend. Branch: `android/v0.4.0-mobile-foundation`.
-Version 0.4.7 / build 23 makes the static-batch diagnostic compare output
-against CPU and report speed only once QNN execution and output are
-confirmed, on top of build 22's internal-storage fix for the diagnostic
-input file.
+Version 0.4.8 / build 24 confirmed the static-batch fix on-device (QNN GPU
+executed the full graph, output matched CPU within 0.00001 relative RMS, 5.5x
+faster) and wires it into the real separation route for all four KUIELab
+models: **QNN GPU** and **Auto** now download and use a static-batch variant
+of the selected model(s) for QNN inference, published in this repo's own
+[`qnn-gpu-static-batch-v1`](https://github.com/flarkflarkflark/STEMwerk-Android/releases/tag/qnn-gpu-static-batch-v1)
+release. CPU and NNAPI, and the Auto-mode fallback, keep using the original
+upstream models unchanged.
+Build 23 made the static-batch diagnostic compare output against CPU and
+report speed only once QNN execution and output are confirmed, on top of
+build 22's internal-storage fix for the diagnostic input file.
 Build 21 added verbose QNN session logging and the static-batch diagnostic
 for the whole-graph QNN rejection found in build 20.
 Build 20 added a second device acceleration test that allows
@@ -36,6 +43,11 @@ artificially enlarged. Playback pauses when the player screen is left.
 Four stems use four separate KUIELab A MDX models, approximately 119 MB total.
 Two stems use UVR MDX Voc_FT, approximately 67 MB.
 Only models needed for the selected stems are downloaded. Models remain in app storage and are checked against pinned SHA-256 hashes before use. Normal APK updates retain them; uninstalling or clearing app data removes them.
+
+When the QNN GPU route is used (**QNN GPU** or **Auto**) for a KUIELab model, an
+additional static-batch variant of that same model (~28 MB each, up to four)
+is downloaded from this repo's own release and cached alongside the original
+— see Qualcomm QNN GPU below for why. It is only fetched when needed.
 
 Source weights: [UVR model repository](https://github.com/TRvlvr/model_repo/releases/tag/all_public_uvr_models).
 Model configuration: [upstream MDX metadata](https://github.com/TRvlvr/application_data/blob/main/mdx_model_data/model_data_new.json).
@@ -92,16 +104,31 @@ dimension, and upstream ONNX Runtime QNN EP documentation states dynamic
 shapes (their own example is a dynamic batch size) are not supported and must
 be fixed to a specific value; this lines up with an all-or-nothing rejection
 of the whole graph. Build 21 adds `setSessionLogLevel(ORT_LOGGING_LEVEL_VERBOSE)`
-on QNN sessions to surface ORT's own partitioning log line for this rejection,
-and an optional diagnostic: if a static-batch copy of `kuielab_a_vocals.onnx`
-(only the batch dimension changed from dynamic to `1`; verified bit-identical
-to the original on CPU before use) is present at
-`<app internal files>/diag/static_batch_vocals.onnx` on the device (internal
-storage, e.g. via `adb shell run-as com.flark.stemwerk` — external storage is
-not reliably writable this way from `adb shell` on all devices), the probe
-runs it through the strict QNN GPU route and reports whether QNN executes it.
-This isolates whether dynamic batch size is the actual blocker, without
-changing the shipped models or the existing strict/mixed tests.
+on QNN sessions, which confirmed this directly: ORT's own log shows the very
+first graph node (`Conv_0`) failing QNN validation with
+`conv_op_builder.cc:83 IsOpSupported Cannot get shape`, cascading through
+every remaining node to `Number of partitions supported by QNN EP: 0`.
+
+Build 21-23 added a hand-placed diagnostic (a static-batch copy of
+`kuielab_a_vocals.onnx`, only the batch dimension changed from dynamic to `1`,
+verified bit-identical to the original on CPU before use) to test this
+hypothesis without touching the shipped models. On the Zenfone 10 it
+confirmed the fix: QNN executed the complete graph, output matched CPU within
+0.000011 relative RMS, and it ran 5.5x faster than CPU (1089 ms vs. 5994 ms
+for `kuielab_a_vocals`).
+
+Build 24 converted all four KUIELab models the same way, verified each
+converted file bit-identical to its original on CPU before publishing, and
+hosts them in this repo's [`qnn-gpu-static-batch-v1`
+release](https://github.com/flarkflarkflark/STEMwerk-Android/releases/tag/qnn-gpu-static-batch-v1)
+— `ModelManager.ensureQnnModel()` downloads and SHA-256-verifies them the same
+way `ensureModel()` handles the original upstream models. `OnnxMdxSeparator`'s
+QNN GPU route now loads this static-batch file instead of the original
+whenever one is available for the selected model; CPU, NNAPI, and the
+AUTO-mode CPU fallback are untouched and keep using the original file. The
+acceleration probe's static-batch check now runs through this same production
+`ensureQnnModel()` path for all four models, not just a manually placed
+vocals-only diagnostic.
 
 NNAPI remains available only as a legacy manual route. Android 15 deprecated
 NNAPI, and the Zenfone 10 device report from build 17 showed only ORT CPU
@@ -119,7 +146,7 @@ Tap **Test toestelversnelling**. The selected model or four-model pack is tested
 - Reported speed excludes model loading, decoding, STFT and downloads. It does not predict whole-song speed.
 - The probe requests QNN's GPU backend; an HTP/NPU route would require separately quantized and quality-validated models.
 - Share the text report to inspect hardware results. No audio or sensitive account information is included.
-- If a static-batch diagnostic model has been placed on the device (see Qualcomm QNN GPU above), a fourth section runs after the four stems, isolating whether a fixed batch dimension changes the QNN result.
+- A fourth section per model downloads and tests the published static-batch QNN variant (see Qualcomm QNN GPU above) the same way the real separation route uses it, confirming both real QNN execution and output agreement with CPU before reporting any speedup.
 
 CPU remains available. Auto retries CPU if QNN session creation or inference fails.
 

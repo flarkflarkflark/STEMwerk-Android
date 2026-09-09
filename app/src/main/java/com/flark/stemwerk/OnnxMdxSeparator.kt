@@ -42,6 +42,7 @@ class OnnxMdxSeparator(
         audio: PcmAudio,
         model: ModelManager.ModelEntry,
         modelFile: File,
+        qnnModelFile: File?,
         selectedStemNames: List<String>,
         backend: InferenceBackend,
         output: OutputSink,
@@ -75,7 +76,7 @@ class OnnxMdxSeparator(
         onLog("Downloading/checking model: ${model.file}")
 
         val env = OrtEnvironment.getEnvironment()
-        val handle = createSession(env, modelFile, backend)
+        val handle = createSession(env, modelFile, qnnModelFile, backend)
         onLog("Inference provider: ${handle.providerName}")
 
         val primaryRaw = File.createTempFile("stemwerk-primary-", ".pcm", context.cacheDir)
@@ -155,6 +156,7 @@ class OnnxMdxSeparator(
     private fun createSession(
         env: OrtEnvironment,
         modelFile: File,
+        qnnModelFile: File?,
         backend: InferenceBackend,
     ): SessionHandle {
         fun cpu(): SessionHandle {
@@ -178,6 +180,12 @@ class OnnxMdxSeparator(
         }
 
         fun qnnGpu(): SessionHandle {
+            // QNN GPU cannot resolve shapes through this model's dynamic batch
+            // dimension and rejects the whole graph; qnnModelFile is a
+            // static-batch variant (batch fixed to 1, verified bit-identical
+            // output) used only for this route. The original modelFile is
+            // still used for CPU/NNAPI and stays the AUTO-mode fallback.
+            val file = qnnModelFile ?: modelFile
             return OrtSession.SessionOptions().use { options ->
                 // A successful QNN session must execute the complete graph on
                 // QNN. This prevents a nominal GPU selection from silently
@@ -188,8 +196,9 @@ class OnnxMdxSeparator(
                     "profiling_level" to "off",
                 ))
                 SessionHandle(
-                    env.createSession(modelFile.absolutePath, options),
-                    "QNN GPU (Adreno; ORT CPU fallback disabled)",
+                    env.createSession(file.absolutePath, options),
+                    if (qnnModelFile != null) "QNN GPU (Adreno; static-batch model; ORT CPU fallback disabled)"
+                    else "QNN GPU (Adreno; ORT CPU fallback disabled)",
                 )
             }
         }
