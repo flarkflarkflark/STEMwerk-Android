@@ -44,6 +44,18 @@ android {
     buildFeatures {
         buildConfig = true
     }
+
+    packaging {
+        jniLibs {
+            // This slice targets QNN's float GPU backend. HTP/DSP binaries are
+            // only useful for separately quantized NPU models and add roughly
+            // 170 MB to an APK, so do not ship them in the GPU build.
+            excludes += setOf(
+                "**/libQnnHtp*.so",
+                "**/libQnnDsp*.so",
+            )
+        }
+    }
 }
 
 dependencies {

@@ -46,6 +46,10 @@ graph, Auto reports the reason and retries the model with the regular ARM64 CPU
 provider. Selecting **QNN GPU** explicitly fails the job instead of falling
 back, which is useful for validation.
 
+The APK includes the QNN GPU and system libraries. HTP/DSP libraries are left
+out of this GPU build; they are only useful after separate NPU quantization and
+quality validation.
+
 NNAPI remains available only as a legacy manual route. Android 15 deprecated
 NNAPI, and the Zenfone 10 device report from build 17 showed only ORT CPU
 provider events for all four KUIELab models.
