@@ -85,7 +85,7 @@ class AudioIntegrationTest {
         }
     }
 
-    @Test fun testAccelerationReportHasCpuAndActualNnapiVerdict() {
+    @Test fun testAccelerationReportHasCpuAndActualQnnVerdict() {
         val cache = cacheVocalModel()
         try {
             val lines = mutableListOf<String>()
@@ -94,8 +94,8 @@ class AudioIntegrationTest {
                 android.util.Log.i("STEMwerkProbeTest", it)
             })
             assertTrue(lines.any { it.startsWith("CPU mean:") })
-            assertTrue(lines.any { it.contains("NNAPI ACCELERATION CONFIRMED") ||
-                it.contains("NO ACCELERATION CONFIRMED") || it.contains("NNAPI UNAVAILABLE OR FAILED") ||
+            assertTrue(lines.any { it.contains("QNN GPU ACCELERATION CONFIRMED") ||
+                it.contains("NO QNN ACCELERATION CONFIRMED") || it.contains("QNN GPU UNAVAILABLE OR FAILED") ||
                 it.contains("OUTPUT CHECK FAILED") })
             assertTrue(lines.last().contains("Test complete"))
         } finally { cache.delete() }

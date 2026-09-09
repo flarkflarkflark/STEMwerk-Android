@@ -20,7 +20,7 @@ class AccelerationTestActivity : AppCompatActivity() {
         findViewById<Button>(R.id.previewOutputButton).visibility = android.view.View.GONE
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         findViewById<TextView>(R.id.procTitle).text = "Test toestelversnelling"
-        findViewById<TextView>(R.id.progressText).text = "Vergelijkt CPU en NNAPI; houd de app geopend."
+        findViewById<TextView>(R.id.progressText).text = "Vergelijkt CPU en QNN GPU; houd de app geopend."
         findViewById<ProgressBar>(R.id.progressBar).isIndeterminate = true
         val share = findViewById<Button>(R.id.shareButton)
         share.text = "Share test report"

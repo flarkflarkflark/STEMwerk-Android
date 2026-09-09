@@ -177,14 +177,32 @@ class OnnxMdxSeparator(
             }
         }
 
+        fun qnnGpu(): SessionHandle {
+            return OrtSession.SessionOptions().use { options ->
+                // A successful QNN session must execute the complete graph on
+                // QNN. This prevents a nominal GPU selection from silently
+                // running unsupported nodes on ORT CPU.
+                options.addConfigEntry("session.disable_cpu_ep_fallback", "1")
+                options.addQnn(mapOf(
+                    "backend_type" to "gpu",
+                    "profiling_level" to "off",
+                ))
+                SessionHandle(
+                    env.createSession(modelFile.absolutePath, options),
+                    "QNN GPU (Adreno; ORT CPU fallback disabled)",
+                )
+            }
+        }
+
         return when (backend) {
             InferenceBackend.CPU -> cpu()
+            InferenceBackend.QNN_GPU -> qnnGpu()
             InferenceBackend.NNAPI -> nnapi()
             InferenceBackend.AUTO -> {
                 try {
-                    nnapi()
+                    qnnGpu()
                 } catch (error: Throwable) {
-                    onLog("NNAPI unavailable for this model/device: ${error.message ?: error::class.java.simpleName}")
+                    onLog("QNN GPU unavailable for this model/device: ${error.message ?: error::class.java.simpleName}")
                     onLog("Falling back to ARM64 CPU")
                     cpu()
                 }

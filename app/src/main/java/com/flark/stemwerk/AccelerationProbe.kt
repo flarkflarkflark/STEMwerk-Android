@@ -1,14 +1,12 @@
 package com.flark.stemwerk
 
 import ai.onnxruntime.*
-import ai.onnxruntime.providers.NNAPIFlags
 import android.content.Context
 import android.os.Build
 import android.os.SystemClock
 import org.json.JSONArray
 import java.io.File
 import java.nio.FloatBuffer
-import java.util.EnumSet
 import kotlin.math.*
 
 /** Benchmarks real model execution; no user audio is needed or uploaded. */
@@ -21,7 +19,8 @@ class AccelerationProbe(private val context: Context) {
         log("ABI: " + Build.SUPPORTED_ABIS.joinToString() + "; CPU cores: " + Runtime.getRuntime().availableProcessors())
         log("Real model, deterministic test spectrum. One warm-up + two timed runs per route.")
         log("Times exclude decoding, STFT, downloads and model loading. Profiling enabled on both routes.")
-        log("NNAPI CPU_DISABLED: no Android reference CPU device. Unsupported operators may still use ORT CPU.")
+        log("QNN GPU test targets Snapdragon Adreno through Qualcomm's official execution provider.")
+        log("ORT CPU fallback is disabled inside the QNN session: a QNN result must run the complete model graph.")
         val stems = if (modelId == ModelManager.FOUR_STEMS) ModelManager.STEMS else listOf("vocals", "other")
         val manager = ModelManager(context)
         for (model in ModelManager.selectedModels(modelId, stems)) {
@@ -35,9 +34,9 @@ class AccelerationProbe(private val context: Context) {
             val cpu = measure(model, file, spectrum, false, checkCancelled)
             log("CPU mean: " + "%.1f".format(cpu.milliseconds) + " ms")
             try {
-                log("Running NNAPI warm-up and measurements…")
+            log("Running QNN GPU warm-up and measurements…")
                 val hardware = measure(model, file, spectrum, true, checkCancelled)
-                val nnapiEvents = hardware.providers.filterKeys { it.contains("nnapi", true) }.values.sum()
+                val qnnEvents = hardware.providers.filterKeys { it.contains("qnn", true) }.values.sum()
                 log("Executed provider events: " + hardware.providers)
                 var error = 0.0
                 var reference = 0.0
@@ -49,20 +48,20 @@ class AccelerationProbe(private val context: Context) {
                 }
                 val relativeError = sqrt(error / max(reference, 1e-12))
                 val speedup = cpu.milliseconds / hardware.milliseconds
-                log("NNAPI mean: " + "%.1f".format(hardware.milliseconds) + " ms; CPU/NNAPI: " + "%.2f".format(speedup) + "x")
+                log("QNN GPU mean: " + "%.1f".format(hardware.milliseconds) + " ms; CPU/QNN: " + "%.2f".format(speedup) + "x")
                 log("Relative RMS difference vs CPU: " + "%.6f".format(relativeError))
                 when {
-                    nnapiEvents == 0 -> log("NO ACCELERATION CONFIRMED: no NNAPI operations recorded; CPU fallback.")
-                    relativeError > 0.02 -> log("NNAPI ACTIVE, OUTPUT CHECK FAILED: use CPU; result differs by more than 2% relative RMS.")
+                    qnnEvents == 0 -> log("NO QNN ACCELERATION CONFIRMED: no QNN operations recorded.")
+                    relativeError > 0.02 -> log("QNN GPU ACTIVE, OUTPUT CHECK FAILED: use CPU; result differs by more than 2% relative RMS.")
                     else -> {
-                        log("NNAPI ACCELERATION CONFIRMED; CPU comparison passed.")
-                        log(if (speedup > 1.05) "NNAPI was faster in this test." else "No useful speed gain measured; CPU may be preferable.")
+                        log("QNN GPU ACCELERATION CONFIRMED; CPU comparison passed.")
+                        log(if (speedup > 1.05) "QNN GPU was faster in this test." else "No useful speed gain measured; CPU may be preferable.")
                     }
                 }
-                log("This identifies NNAPI delegation, not the exact GPU/NPU driver. Thermal state can affect timing.")
-            } catch (e: Exception) {
+                log("QNN backend_type=gpu identifies the Adreno route. Thermal state can affect timing.")
+            } catch (e: Throwable) {
                 checkCancelled()
-                log("NNAPI UNAVAILABLE OR FAILED for this model: " + (e.message ?: e.javaClass.simpleName))
+                log("QNN GPU UNAVAILABLE OR FAILED for this model: " + (e.message ?: e.javaClass.simpleName))
                 log("CPU completed successfully.")
             }
         }
@@ -70,7 +69,7 @@ class AccelerationProbe(private val context: Context) {
     }
 
     private fun measure(model: ModelManager.ModelEntry, file: File, spectrum: FloatArray,
-        nnapi: Boolean, checkCancelled: () -> Unit): Measurement {
+        qnnGpu: Boolean, checkCancelled: () -> Unit): Measurement {
         val env = OrtEnvironment.getEnvironment()
         val work = File(context.cacheDir, "probe-" + java.util.UUID.randomUUID())
         check(work.mkdirs())
@@ -78,7 +77,13 @@ class AccelerationProbe(private val context: Context) {
             return OrtSession.SessionOptions().use { options ->
                 options.setIntraOpNumThreads(Runtime.getRuntime().availableProcessors().coerceIn(1, 4))
                 options.enableProfiling(File(work, "profile").absolutePath)
-                if (nnapi) options.addNnapi(EnumSet.of(NNAPIFlags.CPU_DISABLED))
+                if (qnnGpu) {
+                    options.addConfigEntry("session.disable_cpu_ep_fallback", "1")
+                    options.addQnn(mapOf(
+                        "backend_type" to "gpu",
+                        "profiling_level" to "off",
+                    ))
+                }
                 env.createSession(file.absolutePath, options).use { session ->
                     OnnxTensor.createTensor(env, FloatBuffer.wrap(spectrum),
                         longArrayOf(1, 4, model.dimF.toLong(), model.dimT.toLong())).use { input ->

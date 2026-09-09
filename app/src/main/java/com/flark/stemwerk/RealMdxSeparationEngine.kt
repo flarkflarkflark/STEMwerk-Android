@@ -65,7 +65,7 @@ class RealMdxSeparationEngine(private val context: Context) : SeparationEngine {
                 } catch (e: ai.onnxruntime.OrtException) {
                     checkCancelled()
                     if (request.backend != InferenceBackend.AUTO) throw e
-                    onLog("NNAPI inference failed; retrying this model on CPU: " + e.message)
+                    onLog("QNN GPU inference failed; retrying this model on CPU: " + e.message)
                     separator.separate(audio, model, file, request.selectedStemNames, InferenceBackend.CPU, request.output)
                 } finally {
                     activeSeparator = null

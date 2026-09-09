@@ -4,11 +4,12 @@ import android.app.AlertDialog
 import android.content.Context
 
 object BackendPickerDialog {
-    private val ids = arrayOf("auto", "cpu", "nnapi")
+    private val ids = arrayOf("auto", "qnn-gpu", "cpu", "nnapi")
     private val labels = arrayOf(
-        "Auto — NNAPI hardware, then CPU",
+        "Auto — QNN GPU, then CPU",
+        "QNN GPU — Snapdragon Adreno",
         "CPU — ARM64",
-        "NNAPI — device hardware",
+        "NNAPI — legacy device route",
     )
 
     fun show(ctx: Context, selected: String, onChosen: (String) -> Unit) {

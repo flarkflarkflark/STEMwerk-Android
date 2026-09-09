@@ -4,12 +4,14 @@ import android.net.Uri
 
 enum class InferenceBackend {
     AUTO,
+    QNN_GPU,
     CPU,
     NNAPI;
 
     companion object {
         fun fromId(id: String?): InferenceBackend = when (id?.lowercase()) {
             "cpu" -> CPU
+            "qnn", "qnn-gpu", "gpu" -> QNN_GPU
             "nnapi", "hardware" -> NNAPI
             else -> AUTO
         }

@@ -11,8 +11,8 @@ android {
         applicationId = "com.flark.stemwerk"
         minSdk = 26
         targetSdk = 34
-        versionCode = 17
-        versionName = "0.4.1"
+        versionCode = 18
+        versionName = "0.4.2"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
         // We start with ARM64 only (ZenFone 10). Add armeabi-v7a later if needed.
@@ -52,9 +52,14 @@ dependencies {
     androidTestImplementation("androidx.test.ext:junit:1.2.1")
     implementation("com.caverock:androidsvg:1.4")
 
-    // Portable MDX inference on Android. CPU is always available; NNAPI is
-    // enabled at runtime for device hardware acceleration when supported.
-    implementation("com.microsoft.onnxruntime:onnxruntime-android:1.20.0")
+    // The delivered ARM64 APK includes the official Qualcomm QNN execution
+    // provider and runtime. The x86_64 CI emulator uses regular ORT because
+    // QNN targets Snapdragon Android hardware.
+    if (project.hasProperty("testEmulator")) {
+        implementation("com.microsoft.onnxruntime:onnxruntime-android:1.29.0")
+    } else {
+        implementation("com.microsoft.onnxruntime:onnxruntime-android-qnn:1.29.0")
+    }
 
     // Arbitrary-length real/complex FFT used by the MDX STFT/ISTFT path.
     implementation("com.github.wendykierp:JTransforms:3.1")

@@ -1,7 +1,8 @@
 # STEMwerk Android
 
 Native ARM64 Android frontend. Branch: `android/v0.4.0-mobile-foundation`.
-Version 0.4.1 / build 17 adds local audio decoding, batch input, four stems and a device acceleration test.
+Version 0.4.2 / build 18 adds a Qualcomm QNN GPU route for Snapdragon devices.
+Build 17 added local audio decoding, batch input, four stems and a device acceleration test.
 It also includes playback and real PCM waveforms for originals and completed stems.
 
 ## Use
@@ -35,19 +36,33 @@ The previous Voc_FT configuration was incorrect; build 17 corrects it to [1,4,30
 Four-stem outputs are independent model estimates. They are not forced to sum exactly to the mixture. DrumSep (splitting drums further) remains later scope.
 Audio stays local; no inference server is used. Temporary decoded audio is held on disk and removed per job.
 
+## Qualcomm QNN GPU
+
+The delivered ARM64 APK uses Microsoft's official
+`onnxruntime-android-qnn` package. **Auto** first tries QNN with
+`backend_type=gpu`, which targets the Snapdragon Adreno GPU. CPU fallback is
+disabled inside that QNN session. If QNN cannot execute the complete model
+graph, Auto reports the reason and retries the model with the regular ARM64 CPU
+provider. Selecting **QNN GPU** explicitly fails the job instead of falling
+back, which is useful for validation.
+
+NNAPI remains available only as a legacy manual route. Android 15 deprecated
+NNAPI, and the Zenfone 10 device report from build 17 showed only ORT CPU
+provider events for all four KUIELab models.
+
 ## Test device acceleration
 
-Tap **Test toestelversnelling**. The selected model or four-model pack is tested with a deterministic spectrum, one warm-up and two timed runs on each of CPU and NNAPI.
+Tap **Test toestelversnelling**. The selected model or four-model pack is tested with a deterministic spectrum, one warm-up and two timed runs on each of CPU and QNN GPU.
 
 - Logs contain actual execution-provider events from ONNX Runtime profiling.
-- NNAPI disables the Android reference CPU device. Unsupported graph operations can still run on ONNX Runtime CPU.
-- A successful session without NNAPI execution events is reported as unconfirmed acceleration.
+- ORT CPU fallback is disabled inside the measured QNN session.
+- A successful session without QNN execution events is reported as unconfirmed acceleration.
 - Outputs are checked for finite values and relative RMS difference against CPU (2% diagnostic threshold).
 - Reported speed excludes model loading, decoding, STFT and downloads. It does not predict whole-song speed.
-- GPU versus NPU cannot be identified by the provider name alone.
+- The probe requests QNN's GPU backend; an HTP/NPU route would require separately quantized and quality-validated models.
 - Share the text report to inspect hardware results. No audio or sensitive account information is included.
 
-CPU remains available. Auto retries CPU if NNAPI session creation or inference fails.
+CPU remains available. Auto retries CPU if QNN session creation or inference fails.
 
 ## Verification
 
