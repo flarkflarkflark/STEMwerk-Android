@@ -1,9 +1,10 @@
 # STEMwerk Android
 
 Native ARM64 Android frontend. Branch: `android/v0.4.0-mobile-foundation`.
-Version 0.4.6 / build 22 moves the static-batch diagnostic input to internal
-app storage; external storage was not reliably writable for this from
-`adb shell` on the Zenfone 10 test device.
+Version 0.4.7 / build 23 makes the static-batch diagnostic compare output
+against CPU and report speed only once QNN execution and output are
+confirmed, on top of build 22's internal-storage fix for the diagnostic
+input file.
 Build 21 added verbose QNN session logging and the static-batch diagnostic
 for the whole-graph QNN rejection found in build 20.
 Build 20 added a second device acceleration test that allows

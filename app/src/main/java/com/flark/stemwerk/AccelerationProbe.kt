@@ -109,16 +109,38 @@ class AccelerationProbe(private val context: Context) {
         if (diagFile.exists()) {
             log("\nDiagnostic: kuielab_a_vocals.onnx with its dynamic batch dimension fixed to 1.")
             log("Offline check: this variant produced bit-identical output to the original on CPU for the same input.")
-            log("Runs strict QNN GPU (CPU fallback disabled), same as the whole-graph test above.")
+            log("Runs CPU and strict QNN GPU (CPU fallback disabled) on this variant, same comparison as the whole-graph test above.")
             try {
                 val vocalsModel = ModelManager.MODELS.first { it.id == "kuielab-vocals" }
                 val random = java.util.Random(42)
                 val spectrum = FloatArray(4 * vocalsModel.dimF * vocalsModel.dimT) { (random.nextGaussian() * 0.1).toFloat() }
+                val diagCpu = measure(vocalsModel, diagFile, spectrum, false, checkCancelled)
+                log("Static-batch CPU mean: " + "%.1f".format(diagCpu.milliseconds) + " ms")
                 val result = measure(vocalsModel, diagFile, spectrum, true, checkCancelled)
                 val qnnEvents = result.providers.filterKeys { it.contains("qnn", true) }.values.sum()
                 log("Executed provider events (static-batch diagnostic): " + result.providers)
-                log(if (qnnEvents > 0) "STATIC BATCH DIAGNOSTIC: QNN executed the full graph — dynamic batch size was the blocker."
-                    else "STATIC BATCH DIAGNOSTIC: QNN executed nothing even with a static batch — dynamic batch size alone does not explain the rejection.")
+                if (qnnEvents == 0) {
+                    log("STATIC BATCH DIAGNOSTIC: QNN executed nothing even with a static batch — dynamic batch size alone does not explain the rejection.")
+                } else {
+                    var error = 0.0
+                    var reference = 0.0
+                    require(diagCpu.output.size == result.output.size) { "Different output tensor shapes" }
+                    for (i in diagCpu.output.indices) {
+                        val difference = diagCpu.output[i].toDouble() - result.output[i]
+                        error += difference * difference
+                        reference += diagCpu.output[i].toDouble() * diagCpu.output[i]
+                    }
+                    val relativeError = sqrt(error / max(reference, 1e-12))
+                    val speedup = diagCpu.milliseconds / result.milliseconds
+                    log("Relative RMS difference vs CPU (static-batch): " + "%.6f".format(relativeError))
+                    if (relativeError > 0.02) {
+                        log("STATIC BATCH DIAGNOSTIC: QNN executed the full graph, but output differs from CPU by more than 2% relative RMS — do not treat as a working route yet.")
+                    } else {
+                        log("STATIC BATCH DIAGNOSTIC CONFIRMED: QNN executed the full graph with output matching CPU — dynamic batch size was the blocker.")
+                        log("Static-batch QNN GPU mean: " + "%.1f".format(result.milliseconds) + " ms; CPU/QNN: " + "%.2f".format(speedup) + "x")
+                        log(if (speedup > 1.05) "Static-batch QNN GPU was faster than CPU in this test." else "QNN executed correctly but was not faster than CPU in this test.")
+                    }
+                }
             } catch (e: Throwable) {
                 checkCancelled()
                 log("Static-batch diagnostic UNAVAILABLE OR FAILED: " + (e.message ?: e.javaClass.simpleName))
