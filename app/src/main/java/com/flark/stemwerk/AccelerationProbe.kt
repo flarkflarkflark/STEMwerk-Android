@@ -11,7 +11,7 @@ import kotlin.math.*
 
 /** Benchmarks real model execution; no user audio is needed or uploaded. */
 class AccelerationProbe(private val context: Context) {
-    data class Measurement(val milliseconds: Double, val output: FloatArray, val providers: Map<String, Int>)
+    data class Measurement(val milliseconds: Double, val output: FloatArray, val providers: Map<String, Int>, val opProviders: Map<String, Map<String, Int>>)
 
     fun run(modelId: String, checkCancelled: () -> Unit, log: (String) -> Unit) {
         log("STEMwerk " + BuildConfig.VERSION_NAME + " (" + BuildConfig.VERSION_CODE + ")")
@@ -21,6 +21,7 @@ class AccelerationProbe(private val context: Context) {
         log("Times exclude decoding, STFT, downloads and model loading. Profiling enabled on both routes.")
         log("QNN GPU test targets Snapdragon Adreno through Qualcomm's official execution provider.")
         log("ORT CPU fallback is disabled inside the QNN session: a QNN result must run the complete model graph.")
+        log("A second QNN GPU + CPU test (CPU fallback allowed) runs after that, to check for partial-GPU speedups.")
         val stems = if (modelId == ModelManager.FOUR_STEMS) ModelManager.STEMS else listOf("vocals", "other")
         val manager = ModelManager(context)
         for (model in ModelManager.selectedModels(modelId, stems)) {
@@ -64,12 +65,51 @@ class AccelerationProbe(private val context: Context) {
                 log("QNN GPU UNAVAILABLE OR FAILED for this model: " + (e.message ?: e.javaClass.simpleName))
                 log("CPU completed successfully.")
             }
+            try {
+                log("Running QNN GPU + CPU (fallback allowed) warm-up and measurements…")
+                val mixed = measure(model, file, spectrum, true, checkCancelled, allowCpuFallback = true)
+                val qnnEvents = mixed.providers.filterKeys { it.contains("qnn", true) }.values.sum()
+                val cpuEvents = mixed.providers.filterKeys { it.contains("cpu", true) }.values.sum()
+                log("Executed provider events (mixed): " + mixed.providers)
+                val cpuOps = mixed.opProviders.filterValues { byProvider -> byProvider.keys.any { it.contains("cpu", true) } }.keys
+                if (cpuOps.isNotEmpty()) log("Op types still on CPU (mixed): " + cpuOps.sorted().joinToString())
+                if (qnnEvents == 0) {
+                    log("ALL OPERATIONS RAN ON CPU (mixed): not a GPU result, even though CPU fallback was allowed.")
+                } else {
+                    var error = 0.0
+                    var reference = 0.0
+                    require(cpu.output.size == mixed.output.size) { "Different output tensor shapes" }
+                    for (i in cpu.output.indices) {
+                        val difference = cpu.output[i].toDouble() - mixed.output[i]
+                        error += difference * difference
+                        reference += cpu.output[i].toDouble() * cpu.output[i]
+                    }
+                    val relativeError = sqrt(error / max(reference, 1e-12))
+                    val speedup = cpu.milliseconds / mixed.milliseconds
+                    log("QNN GPU + CPU (mixed) mean: " + "%.1f".format(mixed.milliseconds) + " ms; CPU/mixed: " + "%.2f".format(speedup) + "x")
+                    log("Relative RMS difference vs CPU (mixed): " + "%.6f".format(relativeError))
+                    when {
+                        relativeError > 0.02 -> log("QNN GPU + CPU (mixed) ACTIVE, OUTPUT CHECK FAILED: use CPU; result differs by more than 2% relative RMS.")
+                        cpuEvents > 0 -> {
+                            log("QNN GPU + CPU (mixed) PARTIAL ACCELERATION CONFIRMED: some operations ran on QNN, some on CPU; CPU comparison passed.")
+                            log(if (speedup > 1.05) "Mixed route was faster in this test." else "No useful speed gain measured from partial QNN use; CPU may be preferable.")
+                        }
+                        else -> {
+                            log("QNN GPU + CPU (mixed) FULL ACCELERATION CONFIRMED: entire graph ran on QNN; CPU comparison passed.")
+                            log(if (speedup > 1.05) "Mixed route was faster in this test." else "No useful speed gain measured; CPU may be preferable.")
+                        }
+                    }
+                }
+            } catch (e: Throwable) {
+                checkCancelled()
+                log("QNN GPU + CPU (mixed) UNAVAILABLE OR FAILED for this model: " + (e.message ?: e.javaClass.simpleName))
+            }
         }
         log("\nTest complete. Share this report to inspect the results.")
     }
 
     private fun measure(model: ModelManager.ModelEntry, file: File, spectrum: FloatArray,
-        qnnGpu: Boolean, checkCancelled: () -> Unit): Measurement {
+        qnnGpu: Boolean, checkCancelled: () -> Unit, allowCpuFallback: Boolean = false): Measurement {
         val env = OrtEnvironment.getEnvironment()
         val work = File(context.cacheDir, "probe-" + java.util.UUID.randomUUID())
         check(work.mkdirs())
@@ -78,7 +118,7 @@ class AccelerationProbe(private val context: Context) {
                 options.setIntraOpNumThreads(Runtime.getRuntime().availableProcessors().coerceIn(1, 4))
                 options.enableProfiling(File(work, "profile").absolutePath)
                 if (qnnGpu) {
-                    options.addConfigEntry("session.disable_cpu_ep_fallback", "1")
+                    if (!allowCpuFallback) options.addConfigEntry("session.disable_cpu_ep_fallback", "1")
                     options.addQnn(mapOf(
                         "backend_type" to "gpu",
                         "profiling_level" to "off",
@@ -105,12 +145,17 @@ class AccelerationProbe(private val context: Context) {
                         val profile = File(session.endProfiling())
                         val events = JSONArray(profile.readText())
                         val providers = mutableMapOf<String, Int>()
+                        val opProviders = mutableMapOf<String, MutableMap<String, Int>>()
                         for (i in 0 until events.length()) {
                             val args = events.getJSONObject(i).optJSONObject("args") ?: continue
                             val provider = args.optString("provider")
-                            if (provider.isNotEmpty()) providers[provider] = (providers[provider] ?: 0) + 1
+                            if (provider.isEmpty()) continue
+                            providers[provider] = (providers[provider] ?: 0) + 1
+                            val opType = args.optString("op_name").ifEmpty { "?" }
+                            val byProvider = opProviders.getOrPut(opType) { mutableMapOf() }
+                            byProvider[provider] = (byProvider[provider] ?: 0) + 1
                         }
-                        Measurement(elapsed / 2_000_000.0, output, providers)
+                        Measurement(elapsed / 2_000_000.0, output, providers, opProviders)
                     }
                 }
             }

@@ -1,7 +1,9 @@
 # STEMwerk Android
 
 Native ARM64 Android frontend. Branch: `android/v0.4.0-mobile-foundation`.
-Version 0.4.3 / build 19 requests the OEM OpenCL library for QNN GPU.
+Version 0.4.4 / build 20 adds a second device acceleration test that allows
+QNN GPU + CPU fallback, to check for partial-GPU speedups.
+Build 19 requests the OEM OpenCL library for QNN GPU.
 Build 18 added a Qualcomm QNN GPU route for Snapdragon devices.
 Build 17 added local audio decoding, batch input, four stems and a device acceleration test.
 It also includes playback and real PCM waveforms for originals and completed stems.
@@ -60,11 +62,21 @@ See [Android native-library declarations](https://developer.android.com/guide/to
 
 The Zenfone 10 build 18 report showed successful CPU inference for all four
 models (about 4.6–5.1 seconds each), while every QNN GPU initialization failed
-to load `/vendor/lib64/libOpenCL.so`. Build 19 addresses the missing manifest
-declaration. This is a candidate fix, not confirmation of working GPU inference:
-repeat the four-model device probe and inspect QNN provider events and output
-comparison. If loading still fails, inspect the OEM public-library list and
-the exact linker error before choosing another backend.
+to load `/vendor/lib64/libOpenCL.so`. Build 19 addressed the missing manifest
+declaration. The Zenfone 10 build 19 report confirms the linker error is gone
+(the OpenCL driver now loads), but the strict whole-graph QNN session still
+fails on all four models: ONNX Runtime's `GetCapability` step assigns some
+graph nodes to the default CPU execution provider, and the strict test forbids
+any CPU fallback. This means QNN GPU initializes correctly but does not cover
+every op in these models; which ops are unsupported was not yet known from the
+strict test's report alone.
+
+Build 20 adds a second test alongside the strict one: QNN GPU with CPU
+fallback allowed, profiled per operation. It reports which op types still ran
+on CPU, whether QNN executed any ops at all, the CPU/QNN output difference and
+the speed delta versus CPU-only. A session where every operation still ran on
+CPU is always reported as a CPU result, never as GPU acceleration, even though
+fallback was technically allowed.
 
 NNAPI remains available only as a legacy manual route. Android 15 deprecated
 NNAPI, and the Zenfone 10 device report from build 17 showed only ORT CPU
@@ -72,12 +84,13 @@ provider events for all four KUIELab models.
 
 ## Test device acceleration
 
-Tap **Test toestelversnelling**. The selected model or four-model pack is tested with a deterministic spectrum, one warm-up and two timed runs on each of CPU and QNN GPU.
+Tap **Test toestelversnelling**. The selected model or four-model pack is tested with a deterministic spectrum, one warm-up and two timed runs on each of CPU, strict QNN GPU, and QNN GPU with CPU fallback allowed.
 
-- Logs contain actual execution-provider events from ONNX Runtime profiling.
-- ORT CPU fallback is disabled inside the measured QNN session.
-- A successful session without QNN execution events is reported as unconfirmed acceleration.
-- Outputs are checked for finite values and relative RMS difference against CPU (2% diagnostic threshold).
+- Logs contain actual execution-provider events from ONNX Runtime profiling, per route.
+- The strict QNN route disables ORT CPU fallback inside the session; a QNN result there must run the complete model graph.
+- The mixed route allows CPU fallback and additionally reports which op types still executed on CPU, so a partial-QNN result is visible instead of just pass/fail.
+- A successful session without QNN execution events is reported as unconfirmed acceleration, in both the strict and mixed routes; full CPU execution is never reported as a GPU result.
+- Outputs are checked for finite values and relative RMS difference against CPU (2% diagnostic threshold), for both QNN routes.
 - Reported speed excludes model loading, decoding, STFT and downloads. It does not predict whole-song speed.
 - The probe requests QNN's GPU backend; an HTP/NPU route would require separately quantized and quality-validated models.
 - Share the text report to inspect hardware results. No audio or sensitive account information is included.
