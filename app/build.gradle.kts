@@ -11,8 +11,8 @@ android {
         applicationId = "com.flark.stemwerk"
         minSdk = 26
         targetSdk = 34
-        versionCode = 21
-        versionName = "0.4.5"
+        versionCode = 22
+        versionName = "0.4.6"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
         // We start with ARM64 only (ZenFone 10). Add armeabi-v7a later if needed.

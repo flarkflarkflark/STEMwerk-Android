@@ -1,8 +1,11 @@
 # STEMwerk Android
 
 Native ARM64 Android frontend. Branch: `android/v0.4.0-mobile-foundation`.
-Version 0.4.5 / build 21 adds verbose QNN session logging and an optional
-static-batch diagnostic for the whole-graph QNN rejection found in build 20.
+Version 0.4.6 / build 22 moves the static-batch diagnostic input to internal
+app storage; external storage was not reliably writable for this from
+`adb shell` on the Zenfone 10 test device.
+Build 21 added verbose QNN session logging and the static-batch diagnostic
+for the whole-graph QNN rejection found in build 20.
 Build 20 added a second device acceleration test that allows
 QNN GPU + CPU fallback, to check for partial-GPU speedups.
 Build 19 requests the OEM OpenCL library for QNN GPU.
@@ -92,7 +95,9 @@ on QNN sessions to surface ORT's own partitioning log line for this rejection,
 and an optional diagnostic: if a static-batch copy of `kuielab_a_vocals.onnx`
 (only the batch dimension changed from dynamic to `1`; verified bit-identical
 to the original on CPU before use) is present at
-`<app external files>/diag/static_batch_vocals.onnx` on the device, the probe
+`<app internal files>/diag/static_batch_vocals.onnx` on the device (internal
+storage, e.g. via `adb shell run-as com.flark.stemwerk` — external storage is
+not reliably writable this way from `adb shell` on all devices), the probe
 runs it through the strict QNN GPU route and reports whether QNN executes it.
 This isolates whether dynamic batch size is the actual blocker, without
 changing the shipped models or the existing strict/mixed tests.

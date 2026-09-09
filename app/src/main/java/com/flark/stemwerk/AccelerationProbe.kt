@@ -105,7 +105,7 @@ class AccelerationProbe(private val context: Context) {
                 log("QNN GPU + CPU (mixed) UNAVAILABLE OR FAILED for this model: " + (e.message ?: e.javaClass.simpleName))
             }
         }
-        val diagFile = File(context.getExternalFilesDir(null), "diag/static_batch_vocals.onnx")
+        val diagFile = File(context.filesDir, "diag/static_batch_vocals.onnx")
         if (diagFile.exists()) {
             log("\nDiagnostic: kuielab_a_vocals.onnx with its dynamic batch dimension fixed to 1.")
             log("Offline check: this variant produced bit-identical output to the original on CPU for the same input.")
